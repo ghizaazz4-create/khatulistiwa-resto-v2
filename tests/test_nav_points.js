@@ -46,6 +46,8 @@ let pass = 0, fail = 0;
 function check(name, ok) { console.log((ok ? "PASS " : "FAIL ") + name); ok ? pass++ : fail++; }
 
 (async () => {
+  // Seed a staff session so boot() restores it (like a reload after PIN login).
+  sandbox.localStorage.setItem("bento_session_user", JSON.stringify({ id: "E01", name: "Pak Surya Andika", role: "Admin Demo" }));
   await domReady();
   await new Promise(r => setTimeout(r, 50));
   const html = els["app"].innerHTML;
@@ -71,10 +73,15 @@ function check(name, ok) { console.log((ok ? "PASS " : "FAIL ") + name); ok ? pa
   check("navbar Order squircle hijau gelap terangkat", idx.includes("rounded-2xl bg-primary-container") && idx.includes("-mt-4") && idx.includes("ring-surface-container-lowest"));
   check("navbar indikator pil mint #c6ebd8", idx.includes("#c6ebd8") && idx.includes("nav-ico"));
   check("navbar label Beranda/Menu/Hadiah/Profil", ["Beranda", "Menu", "Hadiah", "Profil"].every(s => idx.includes(">" + s + "<")));
-  check("navbar bar hijau gelap penuh sudah tidak ada", !idx.includes("bg-[#163B2C]") && !idx.includes("rounded-t-[28px]") && !idx.includes("bg-[#C7D957]"));
+  check("navbar bar hijau gelap penuh sudah tidak ada", !idx.includes("bg-[#163B2C]") && !idx.includes("rounded-t-[28px]"));
+  check("lime #C7D957 hanya di area admin GASPOS (bukan navbar pelanggan)",
+    idx.includes("bg-[#C7D957]") && !idx.slice(idx.indexOf('id="bottom-nav"'), idx.indexOf('id="staff-login"')).includes("bg-[#C7D957]"));
   check("floating cart bar masih ada", idx.includes('id="floating-cart"'));
   check("semua id yang dipakai app.js ada di index.html",
-    ["app", "app-header", "bottom-nav", "search-input", "track-modal", "cart-drawer", "cart-items", "cart-totals", "cart-footer", "checkout-form", "co-name", "co-phone", "co-address", "co-accept", "co-summary", "co-error", "co-idr", "staff-login", "staff-employee", "staff-pin", "header-avatar", "cart-badge", "floating-cart"].every(id => idx.includes('id="' + id + '"')));
+    ["app", "app-header", "bottom-nav", "search-input", "track-modal", "cart-drawer", "cart-items", "cart-totals", "cart-footer", "checkout-form", "co-name", "co-phone", "co-address", "co-accept", "co-summary", "co-error", "co-idr", "staff-login", "header-avatar", "cart-badge", "floating-cart",
+     "sidebar", "sidebar-toggle", "toggle-icon", "brand-name", "clock-date-part", "clock-time-part", "current-date-clock", "display-menu-btn", "more-menu-btn", "sidebar-online-order-btn", "display-popover", "more-popover",
+     "account-selector", "pin-screen", "pin-pad-grid", "selected-employee-avatar", "selected-employee-name", "staff-error", "open-staff-modal", "staff-selection-modal", "employee-list",
+     "crud-modal", "crud-title", "crud-fields", "crud-error"].every(id => idx.includes('id="' + id + '"')));
 
   // Checkout inline: tidak ada lagi pop-up checkout kedua
   check("tidak ada lagi checkout-modal di index.html", !idx.includes("checkout-modal") && !idx.includes("closeCheckout"));
@@ -148,6 +155,80 @@ function check(name, ok) { console.log((ok ? "PASS " : "FAIL ") + name); ok ? pa
     !/lpad\(n::text, 3/.test(sql001));
   check("placeholder lacak YYMMDD-XXXX + contoh 261127-K7Q2 (bukan -001)",
     idx.includes("YYMMDD-XXXX") && idx.includes("261127-K7Q2") && !idx.includes("261127-001") && !appSrc.includes("YYMMDD-XXX\""));
+
+  // ---------- Admin GASPOS v1 + display views ----------
+  // Static markup (index.html)
+  check("login GASPOS: glass card + GASPOS + Select Account + PIN pad 6 dot",
+    idx.includes('id="account-selector"') && idx.includes(">GASPOS<") && idx.includes("Select Account") &&
+    idx.includes('id="pin-screen"') && (idx.match(/pin-dot/g) || []).length >= 6 && idx.includes('id="pin-pad-grid"') &&
+    idx.includes('id="staff-selection-modal"') && idx.includes('id="employee-list"') &&
+    !idx.includes('id="staff-employee"') && !idx.includes('id="staff-pin"'));
+  check("sidebar GASPOS: Customers/History/Products/Categories/Staff/Reports + Pesan Online + Logout + popover Display/More",
+    idx.includes('id="sidebar"') && ["Customers", "History", "Products", "Categories", "Staff", "Reports", "Pesan Online", "Logout"].every(s => idx.includes(s)) &&
+    idx.includes('id="display-popover"') && idx.includes('id="more-popover"'));
+  check("display popover: POS / Kitchen Display / Customer View / Queue View",
+    ["Register (POS)", "Kitchen Display", "Customer View", "Queue Status"].every(s => idx.includes(s)));
+  check("CRUD modal ada (crud-modal + crud-fields + crud-title)",
+    idx.includes('id="crud-modal"') && idx.includes('id="crud-fields"') && idx.includes('id="crud-title"'));
+  check("font Inter + JetBrains Mono + lucide dimuat",
+    idx.includes("Inter:wght@300") && idx.includes("JetBrains+Mono") && idx.includes("unpkg.com/lucide"));
+  check("CSS GASPOS: bento-card + login-glass + pin-dot + sidebar collapsed",
+    idx.includes(".bento-card") && idx.includes(".login-glass") && idx.includes(".pin-dot") && idx.includes("#sidebar.collapsed"));
+  check("blok admin app.js bebas kelas Stitch",
+    (() => { const a = appSrc.slice(appSrc.indexOf("// ---------- admin (GASPOS v1 look)"), appSrc.indexOf("// ---------- router / render")); return !/primary-container|surface-container|material-symbols-outlined|#1e3f32/.test(a); })());
+  check("redirect customer/queue -> admin sudah dihapus",
+    !appSrc.includes('if (state.view === "customer" || state.view === "queue") state.view = "admin"'));
+
+  // Admin POS (staff session seeded at boot)
+  sandbox.App.go("admin");
+  await new Promise(r => setTimeout(r, 50));
+  const adminHtml = els["app"].innerHTML;
+  check("admin POS tampil (search + kategori + grid + panel Order + Pay Now)",
+    adminHtml.includes('id="pos-search"') && adminHtml.includes('id="pos-product-grid"') && adminHtml.includes('id="pos-cart-items"') &&
+    adminHtml.includes("Pay Now") && adminHtml.includes("Order"));
+  check("admin POS grid menampilkan foto produk asli (assets/products/)",
+    els["pos-product-grid"].innerHTML.includes("assets/products/") && els["pos-product-grid"].innerHTML.includes("Nasi Gaol"));
+  check("admin POS panel Order menampilkan item keranjang + total",
+    els["pos-cart-items"].innerHTML.includes("Nasi Gaol Ayam Bakar") && els["pos-cart-totals"].innerHTML.includes("Subtotal"));
+  // Fast path: tambah di POS tidak me-render ulang seluruh halaman
+  const beforeAdmin = els["app"].innerHTML;
+  sandbox.App.addToCart("P-NG01");
+  await new Promise(r => setTimeout(r, 20));
+  check("tambah di POS admin: panel keranjang ter-update tanpa render ulang penuh",
+    els["app"].innerHTML === beforeAdmin && els["pos-cart-items"].innerHTML.includes("Nasi Gaol Ayam Bakar"));
+  sandbox.App.setOrderType({ getAttribute: (n) => n === "data-v" ? "Delivery" : null });
+  await new Promise(r => setTimeout(r, 20));
+  check("panel POS Delivery kena Tausil 5 LE",
+    els["pos-cart-totals"].innerHTML.includes("Tausil") && els["pos-cart-totals"].innerHTML.includes("5 LE"));
+
+  // Kitchen Display (kanban 4 lane)
+  sandbox.App.go("kitchen");
+  await new Promise(r => setTimeout(r, 50));
+  const kv = els["app"].innerHTML;
+  check("Kitchen Display: Kitchen Workflow + 4 lane kanban",
+    kv.includes("Kitchen Workflow") && ["kanban-Pending", "kanban-Dibuat", "kanban-Diantar", "kanban-Selesai"].every(s => kv.includes(s)));
+
+  // Customer View (publik, demo: Awaiting Order)
+  sandbox.App.go("customer");
+  await new Promise(r => setTimeout(r, 50));
+  const cv = els["app"].innerHTML;
+  check("Customer View publik: SUMMARY + Awaiting Order",
+    cv.includes("SUMMARY") && cv.includes("Awaiting Order"));
+
+  // Queue View (publik, demo: kosong)
+  sandbox.App.go("queue");
+  await new Promise(r => setTimeout(r, 50));
+  const qv = els["app"].innerHTML;
+  check("Queue View publik: Preparing + Ready (Pick Up Now)",
+    qv.includes("Preparing") && qv.includes("Ready") && qv.includes("Pick Up Now"));
+
+  // Login gate: setelah logout, admin minta PIN lagi
+  sandbox.App.go("admin");
+  await new Promise(r => setTimeout(r, 20));
+  sandbox.App.staffLogout();
+  await new Promise(r => setTimeout(r, 20));
+  check("logout -> admin kembali ke layar login (Masuk sebagai staf)",
+    els["app"].innerHTML.includes("Masuk sebagai staf") && els["staff-login"].classList.contains("hidden") === false);
 
   console.log("\n" + pass + " passed, " + fail + " failed");
   process.exit(fail ? 1 : 0);

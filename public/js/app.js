@@ -9,8 +9,13 @@
  *  begitu admin mengisi image_url asli, foto itu tampil di mana-mana.
  *
  * Views (?view=): online (default), order&id=, rewards, profile,
- * admin (staff PIN: POS / Kitchen / Transactions / Customers),
- * kitchen (display, auto-refresh).
+ * admin (staff PIN: POS / Kitchen / Transactions / Customers /
+ * Products / Categories / Staff / Reports / Settings),
+ * kitchen (display, auto-refresh), customer + queue (public displays,
+ * auto-refresh). Admin/POS tampil seperti v1 GASPOS (Inter, kartu
+ * putih bento-card, tombol hitam, ikon Lucide, sidebar GASPOS);
+ * menu pelanggan tetap desain Stitch (Plus Jakarta Sans, Material
+ * Symbols, deep forest #1E3F32, ivory #FCF9F2, lime accent).
  * One source of truth: Supabase (products/categories/settings via anon
  * RLS, orders via submit-online-order, status via staff-api, tracking
  * via track-order). Guest checkout always works; Google login is
@@ -36,6 +41,13 @@
     location: null, // {latitude, longitude, mapsUrl}
     member: null, // synced customer record (Google login) or null (guest)
     staffUser: null, adminTab: "pos", trackTimer: null, kitchenTimer: null,
+    customerTimer: null, queueTimer: null,
+    selectedEmployeeId: "", pinBuffer: "",
+    posSearch: "", posCategory: "All", posCustomerId: "Guest",
+    txnFilter: { q: "", type: "All", date: "" },
+    reportFrom: "", reportTo: "",
+    customerView: null, queueView: null,
+    mgmtType: "", mgmtId: null,
     loading: true, loadError: "",
     demoMode: false, demoOrder: null, // demoMode: Supabase not configured yet
   };
@@ -86,7 +98,7 @@
     state.view = q.get("view") || "online";
     state.orderId = q.get("id") || null;
     if (state.view === "menu") state.view = "online";
-    if (state.view === "customer" || state.view === "queue") state.view = "admin";
+    // ?view=customer / ?view=queue are real public displays now (no redirect).
     if (!window.SUPABASE_CONFIGURED && window.DEMO_DATA) {
       loadDemoData();
     } else {
@@ -113,6 +125,8 @@
     // Google member session (Supabase Auth) — optional, never required.
     await refreshMemberSession();
     render();
+    // Live clock for the GASPOS sidebar + queue display.
+    setInterval(updateClock, 10000); updateClock();
     if (window.supabaseClient) {
       window.supabaseClient.auth.onAuthStateChange(function (_ev, session) {
         if (session && session.user) syncMember().then(render);
@@ -182,16 +196,19 @@
     var it = state.cart.find(function (c) { return c.key === key; });
     if (it) it.qty += 1;
     else state.cart.push({ key: key, id: p.id, name: p.name, price: Number(p.price || 0), point_price: Number(p.point_price || 0), qty: 1, isRedeemed: !!isRedeemed, imageUrl: p.imageUrl || "" });
-    saveCart(); renderCartBadge(); render();
+    saveCart(); renderCartBadge();
+    if (state.view === "admin" && state.adminTab === "pos" && state.staffUser) { renderPosCartPanel(); refreshCartDrawer(); } else render();
   }
   function changeQty(key, d) {
     var it = state.cart.find(function (c) { return c.key === key; }); if (!it) return;
     it.qty += d; if (it.qty <= 0) state.cart = state.cart.filter(function (c) { return c.key !== key; });
-    saveCart(); renderCartBadge(); render();
+    saveCart(); renderCartBadge();
+    if (state.view === "admin" && state.adminTab === "pos" && state.staffUser) { renderPosCartPanel(); refreshCartDrawer(); } else render();
   }
   function removeFromCart(key) {
     state.cart = state.cart.filter(function (c) { return c.key !== key; });
-    saveCart(); renderCartBadge(); render();
+    saveCart(); renderCartBadge();
+    if (state.view === "admin" && state.adminTab === "pos" && state.staffUser) { renderPosCartPanel(); refreshCartDrawer(); } else render();
   }
   function cartTotals() {
     var sub = 0, pts = 0;
@@ -776,6 +793,12 @@
       var sel = b.getAttribute("data-v") === state.orderType;
       b.className = "ot-btn flex-1 py-2 px-1 rounded-full font-label-md text-label-md flex items-center justify-center gap-1 transition-all " + (sel ? "bg-primary-container text-on-primary shadow-sm" : "text-on-surface-variant");
     });
+    // POS admin panel uses the same order-type control (v1 style).
+    var pot = $("pos-ordertype");
+    if (pot) pot.querySelectorAll(".ot-btn").forEach(function (b) {
+      var sel = b.getAttribute("data-v") === state.orderType;
+      b.className = "ot-btn flex-1 py-2 rounded-lg text-sm font-medium transition-all " + (sel ? "bg-white text-black shadow-sm" : "text-gray-500");
+    });
     document.querySelectorAll(".co-pay-row").forEach(function (row) {
       var sel = row.getAttribute("data-v") === state.payment;
       row.classList.toggle("bg-surface-container-low", sel);
@@ -924,7 +947,7 @@
       transferCurrency: state.payment === "Transfer" ? "IDR" : "EGP",
       notes: $("co-notes").value.trim(),
       items: items, subtotal: t.subtotal, serviceCharge: t.service, tax: t.tax, total: t.total,
-      customerId: state.member ? state.member.id : undefined,
+      customerId: state.member ? state.member.id : (state.posCustomerId && state.posCustomerId !== "Guest" ? state.posCustomerId : undefined),
       googleId: state.member && state.member.google_id ? state.member.google_id : undefined,
       email: state.member ? state.member.email : undefined,
       avatarUrl: state.member ? state.member.avatar_url : undefined,
@@ -958,7 +981,40 @@
     else await loadTrack(txnId);
   }
 
-  // ---------- admin (staff PIN) — restyle ringan ke token Stitch ----------
+  // ---------- admin (GASPOS v1 look) ----------
+  // Admin/POS meniru aplikasi v1 GASPOS (khatulistiwa-resto-github-pages/
+  // public/index.html): font Inter, kartu putih bento-card, tombol hitam,
+  // ikon Lucide, sidebar GASPOS, kanban dapur, Customer View & Queue View.
+  // Semua LOGIKA tetap v2: verifyPin (staff-api), status via staff-api,
+  // submitOrder record-first-then-WhatsApp, Tausil 5 LE fixed (Delivery
+  // saja) + Tax 10%, ID acak YYMMDD-XXXX, PIN 123456.
+  // Ikon Lucide: panggil refreshIcons() setelah setiap render admin
+  // (guarded — lucide CDN tidak ada di stub/harness offline).
+  var CAT_ICON_LUCIDE = { "Nasi Gaol": "utensils", "Soup Tomyam": "soup", "Cemilan": "cookie", "Classic Drink": "coffee", "Premium Drink": "cup-soda", "Extra Topping": "plus-circle" };
+  var SHEET_BY_MGMT = { products: "Products", categories: "Categories", employees: "Employees" };
+
+  function refreshIcons() { try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (e) {} }
+  function updateClock() {
+    var d = $("clock-date-part"), t = $("clock-time-part");
+    if (d || t) {
+      var now = new Date();
+      if (d) d.textContent = now.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+      if (t) t.textContent = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    }
+    var q = $("queue-clock"); if (q) q.textContent = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  }
+  function statusPill(status) {
+    var cls = { "Pending": "bg-orange-100 text-orange-700", "Dibuat": "bg-blue-100 text-blue-700", "Diantar": "bg-teal-100 text-teal-700", "Selesai": "bg-green-100 text-green-700", "Void": "bg-gray-100 text-gray-500" }[status] || "bg-gray-100 text-gray-600";
+    return '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ' + cls + '">' + esc(status) + '</span>';
+  }
+  function adminHeaderCard(title, sub, extraHtml) {
+    return '<div class="flex flex-row gap-2 justify-between items-center bg-white p-4 md:p-6 border border-gray-100 rounded-3xl shadow-sm"><div class="min-w-0"><h2 class="text-xl md:text-3xl font-bold truncate">' + esc(title) + '</h2><p class="text-gray-500 text-xs md:text-base hidden md:block">' + esc(sub) + '</p></div><div class="flex flex-row items-center gap-2 shrink-0">' + (extraHtml || "") + '</div></div>';
+  }
+  function blackBtn(label, onclick, icon) {
+    return '<button onclick="' + onclick + '" class="bg-black text-white px-3 md:px-4 py-2.5 rounded-xl text-[10px] md:text-xs font-bold flex items-center gap-1 md:gap-2 hover:opacity-90 shrink-0 justify-center">' + (icon ? '<i data-lucide="' + icon + '" class="w-4 h-4"></i>' : "") + esc(label) + '</button>';
+  }
+
+  // ---------- staff login (v1 GASPOS: glass card + PIN pad) ----------
   function staffEmployees() {
     if (state.employees && state.employees.length) return state.employees;
     return [
@@ -969,18 +1025,84 @@
     ];
   }
   function showStaffLogin() {
-    var sel = $("staff-employee");
-    sel.innerHTML = staffEmployees().map(function (e) { return '<option value="' + esc(e.id) + '">' + esc(e.name) + ' (' + esc(e.role) + ')</option>'; }).join("");
-    $("staff-login").classList.remove("hidden");
+    var ov = $("staff-login"); if (!ov) return;
+    ov.classList.remove("hidden");
+    var acc = $("account-selector"), pin = $("pin-screen");
+    if (acc) acc.classList.remove("hidden");
+    if (pin) pin.classList.add("hidden");
+    state.pinBuffer = "";
+    updatePinDots();
+    refreshIcons();
+  }
+  function hideStaffLogin() { var ov = $("staff-login"); if (ov) ov.classList.add("hidden"); }
+  function openStaffModal() {
+    var list = $("employee-list"); if (!list) return;
+    list.innerHTML = staffEmployees().map(function (e) {
+      var initial = String(e.name || "?").trim().charAt(0).toUpperCase();
+      return '<button onclick="App.selectEmployee(\'' + esc(e.id) + '\')" class="w-full flex items-center gap-3 p-3 rounded-2xl border border-gray-100 hover:border-[#C7D957] hover:bg-[#F7F0DC]/40 transition-all text-left">' +
+        '<span class="w-11 h-11 rounded-full bg-[#C7D957] flex items-center justify-center font-bold text-black shrink-0 overflow-hidden">' + (e.image_url ? '<img src="' + esc(e.image_url) + '" class="w-full h-full object-cover" alt="">' : esc(initial)) + '</span>' +
+        '<span class="flex-1 min-w-0"><span class="block font-bold truncate">' + esc(e.name) + '</span><span class="block text-xs text-gray-400 uppercase tracking-widest">' + esc(e.role || "") + '</span></span>' +
+        '<i data-lucide="chevron-right" class="w-4 h-4 text-gray-300 shrink-0"></i></button>';
+    }).join("");
+    var m = $("staff-selection-modal"); if (m) { m.classList.remove("hidden"); m.classList.add("flex", "modal-open"); }
+    refreshIcons();
+  }
+  function closeStaffModal() {
+    var m = $("staff-selection-modal"); if (!m) return;
+    m.classList.add("hidden"); m.classList.remove("flex", "modal-open");
+  }
+  function selectEmployee(id) {
+    state.selectedEmployeeId = id;
+    var e = staffEmployees().find(function (x) { return String(x.id) === String(id); }) || {};
+    var av = $("selected-employee-avatar"), nm = $("selected-employee-name");
+    var initial = String(e.name || "?").trim().charAt(0).toUpperCase();
+    if (av) av.innerHTML = e.image_url ? '<img src="' + esc(e.image_url) + '" class="w-full h-full object-cover" alt="">' : esc(initial);
+    if (nm) nm.textContent = e.name || "";
+    var acc = $("account-selector"), pin = $("pin-screen");
+    if (acc) acc.classList.add("hidden");
+    if (pin) pin.classList.remove("hidden");
+    closeStaffModal();
+    state.pinBuffer = "";
+    updatePinDots();
+    var err = $("staff-error"); if (err) err.classList.add("hidden");
+    refreshIcons();
+  }
+  function backToAccounts() {
+    var acc = $("account-selector"), pin = $("pin-screen");
+    if (acc) acc.classList.remove("hidden");
+    if (pin) pin.classList.add("hidden");
+    state.pinBuffer = "";
+    updatePinDots();
+  }
+  function updatePinDots() {
+    var dots = document.querySelectorAll(".pin-dot");
+    for (var i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i < state.pinBuffer.length);
+  }
+  function pinPadDigit(d) {
+    if (state.pinBuffer.length >= 6) return;
+    state.pinBuffer += String(d);
+    updatePinDots();
+    if (state.pinBuffer.length === 6) staffLogin();
+  }
+  function pinPadDelete() {
+    state.pinBuffer = state.pinBuffer.slice(0, -1);
+    updatePinDots();
   }
   async function staffLogin() {
-    var emp = $("staff-employee").value, pin = $("staff-pin").value.trim();
-    var err = $("staff-error"); err.classList.add("hidden");
+    var emp = state.selectedEmployeeId, pin = state.pinBuffer;
+    var err = $("staff-error");
+    if (err) err.classList.add("hidden");
+    if (!emp) { if (err) { err.textContent = "Pilih akun staf dulu."; err.classList.remove("hidden"); } return; }
+    if (pin.length !== 6) { if (err) { err.textContent = "Masukkan PIN 6 digit."; err.classList.remove("hidden"); } return; }
     var res = await window.supabaseApi.verifyPin(emp, pin);
-    if (!res || !res.ok) { err.textContent = (res && res.message) || "PIN salah."; err.classList.remove("hidden"); return; }
+    if (!res || !res.ok) {
+      if (err) { err.textContent = (res && res.message) || "PIN salah."; err.classList.remove("hidden"); }
+      state.pinBuffer = ""; updatePinDots();
+      return;
+    }
     state.staffUser = res.data || { id: emp };
     try { localStorage.setItem("bento_session_user", JSON.stringify(state.staffUser)); } catch (e) {}
-    $("staff-login").classList.add("hidden");
+    hideStaffLogin();
     var full = await window.supabaseApi.getAppData();
     if (full && full.ok) {
       state.products = full.data.products || state.products;
@@ -992,7 +1114,7 @@
   }
   function staffLogout() {
     window.supabaseApi.clearSession();
-    state.staffUser = null; state.adminTab = "pos"; render();
+    state.staffUser = null; state.adminTab = "pos"; state.posCustomerId = "Guest"; render();
   }
   async function refreshStaffData() {
     var full = await window.supabaseApi.getAppData();
@@ -1009,86 +1131,725 @@
     if (res && res.ok) { await refreshStaffData(); if (state.view === "kitchen") await loadKitchen(); }
     else alert((res && res.message) || "Gagal mengubah status.");
   }
-  async function loadKitchen() {
-    var res = await window.supabaseApi.getTransactions();
-    var rows = (res && res.ok) ? (res.data || []) : [];
-    var el = $("kitchen-list");
-    if (!el) return;
-    var today = new Date().toISOString().slice(0, 10);
-    rows = rows.filter(function (t) { return String(t.timestamp || "").slice(0, 10) === today && t.status !== "Void"; });
-    el.innerHTML = rows.length ? rows.map(function (t) {
-      var items = [];
-      try { items = JSON.parse(t.items || "[]"); } catch (e) {}
-      var next = t.status === "Pending" ? "Dibuat" : (t.status === "Dibuat" ? (t.orderType === "Delivery" ? "Diantar" : "Selesai") : (t.status === "Diantar" ? "Selesai" : null));
-      return '<div class="bg-surface-container-lowest rounded-2xl shadow-sm p-4 mb-3"><div class="flex justify-between"><b class="font-mono">' + esc(t.id) + '</b><span class="font-headline-sm text-headline-sm text-primary-container">' + esc(t.status) + '</span></div>' +
-        '<p class="font-body-sm text-body-sm text-on-surface-variant">' + esc(t.orderType) + ' • ' + fmt(t.total_amount) + ' • ' + esc(t.paymentMethod || "") + '</p>' +
-        '<div class="font-body-md text-body-md text-on-surface mt-2">' + items.map(function (it) { return '<div>' + Number(it.qty || 0) + ' × ' + esc(displayName(it.name || "")) + '</div>'; }).join("") + '</div>' +
-        (next ? '<button onclick="App.setTxnStatus(\'' + esc(t.id) + '\', \'' + next + '\')" class="mt-3 px-4 py-2 rounded-full bg-primary-container text-on-primary font-label-md text-label-md">Ubah ke ' + next + '</button>' : '<span class="inline-flex items-center gap-1 mt-3 font-label-sm text-label-sm text-primary font-bold bg-primary-fixed/40 px-3 py-1 rounded-full"><span class="material-symbols-outlined text-[15px]">check_circle</span>Selesai</span>') +
-        '</div>';
-    }).join("") : '<p class="font-body-md text-body-md text-on-surface-variant text-center py-8">Belum ada pesanan hari ini.</p>';
+  async function voidTxn(txnId) {
+    if (!state.staffUser) { showStaffLogin(); return; }
+    var pin = window.prompt("Masukkan void PIN untuk membatalkan pesanan " + txnId + ":");
+    if (pin === null) return;
+    var res = await window.supabaseApi.voidTransaction(txnId, pin);
+    if (res && res.ok) { await refreshStaffData(); }
+    else alert((res && res.message) || "Gagal membatalkan pesanan.");
   }
-  function renderAdmin() {
-    if (!state.staffUser) { showStaffLogin(); return '<div class="mt-8 text-center font-body-md text-body-md text-on-surface-variant">Masuk sebagai staf untuk membuka Admin.</div>'; }
-    var tabs = [["pos", "POS"], ["kitchen", "Kitchen"], ["transactions", "Transaksi"], ["customers", "Pelanggan"]];
-    var html = '<div class="mt-4"><div class="flex items-center justify-between"><h2 class="font-headline-md text-headline-md text-on-surface">Admin — ' + esc(state.staffUser.name || "Staf") + '</h2><button onclick="App.staffLogout()" class="font-label-md text-label-md bg-surface-container-lowest px-3 py-2 rounded-full shadow-sm">Keluar</button></div>';
-    html += '<div class="flex gap-2 overflow-x-auto no-scrollbar mt-3">' + tabs.map(function (t) {
-      return '<button onclick="App.setAdminTab(\'' + t[0] + '\')" class="px-4 py-2 rounded-full font-label-md text-label-md whitespace-nowrap ' + (state.adminTab === t[0] ? "bg-primary-container text-on-primary" : "bg-surface-container-lowest shadow-sm text-on-surface-variant") + '">' + t[1] + '</button>';
-    }).join("") + '</div>';
-    if (state.adminTab === "pos") {
-      html += '<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">' + state.products.filter(function (p) { return p.status === "Active"; }).map(function (p) {
-        return '<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">' + (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" class="w-full h-24 object-cover" onerror="this.style.display=\'none\'" alt="">' : '<div class="w-full h-24 bg-surface-container flex items-center justify-center"><span class="material-symbols-outlined text-[28px] text-outline">' + (CAT_ICON[p.category] || "local_dining") + '</span></div>') + '<div class="p-3"><p class="font-headline-sm text-headline-sm text-on-surface">' + esc(displayName(p.name)) + '</p><p class="font-price-tag text-price-tag text-primary-container">' + fmt(p.price) + '</p><button onclick="App.addToCart(\'' + esc(p.id) + '\')" class="mt-2 w-full py-1.5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md">+ Tambah</button></div></div>';
-      }).join("") + '</div>';
-      html += '<button onclick="App.toggleCart(true)" class="fixed bottom-24 right-4 z-40 px-5 py-3 rounded-full bg-primary-container text-on-primary font-label-md text-label-md shadow-lg flex items-center gap-2"><span class="material-symbols-outlined text-[20px]">shopping_bag</span>Keranjang (' + state.cart.reduce(function (a, c) { return a + c.qty; }, 0) + ')</button>';
-      html += '<p class="font-body-sm text-body-sm text-on-surface-variant mt-4">Checkout POS memakai keranjang yang sama — tombol Accept di keranjang akan memakai akun staf (bukan WhatsApp online).</p>';
-    } else if (state.adminTab === "kitchen") {
-      html += '<div id="kitchen-list" class="mt-4"></div><p class="font-body-sm text-body-sm text-outline">Kitchen diperbarui otomatis tiap 15 detik.</p>';
-      setTimeout(loadKitchen, 0);
-    } else if (state.adminTab === "transactions") {
-      html += '<div class="mt-4 space-y-3">' + (state.transactions || []).slice(0, 50).map(function (t) {
-        var items = [];
-        try { items = typeof t.items === "string" ? JSON.parse(t.items) : (t.items_json || t.items || []); } catch (e) {}
-        if (!Array.isArray(items)) items = [];
-        return '<div class="bg-surface-container-lowest rounded-2xl shadow-sm p-4"><div class="flex justify-between flex-wrap gap-2"><b class="font-mono">' + esc(t.id) + '</b><span class="font-headline-sm text-headline-sm text-primary-container">' + esc(t.status) + '</span></div>' +
-          '<p class="font-body-sm text-body-sm text-on-surface-variant">' + esc(t.orderType || "") + ' • ' + fmt(t.total_amount) + ' • ' + esc(t.paymentMethod || t.payment_method || "") + ' • ' + esc(String(t.timestamp || "").slice(0, 16).replace("T", " ")) + '</p>' +
-          '<p class="font-body-md text-body-md text-on-surface">' + items.map(function (it) { return Number(it.qty || 0) + " × " + esc(displayName(it.name || "")); }).join(", ") + '</p>' +
-          '<div class="flex gap-2 mt-2 flex-wrap">' + ["Dibuat", "Diantar", "Selesai"].map(function (s) {
-            return '<button onclick="App.setTxnStatus(\'' + esc(t.id) + '\', \'' + s + '\')" class="font-label-md text-label-md px-3 py-1.5 rounded-full bg-surface-container">' + s + '</button>';
-          }).join("") + '<a class="font-label-md text-label-md px-3 py-1.5 rounded-full bg-secondary-container text-on-secondary-container" href="' + trackingLink(t.id) + '">Link Lacak</a></div></div>';
-      }).join("") + '</div>';
-    } else if (state.adminTab === "customers") {
-      html += '<p class="font-body-sm text-body-sm text-on-surface-variant mt-2">Satu baris per pelanggan — member Google dan Guest dengan nomor WA yang sama digabung (cocok nomor WA / email). Data ini sama dengan yang dilihat member di Profile.</p>';
-      html += '<div class="mt-3 space-y-3">' + (state.customers || []).map(function (c) {
-        return '<div class="bg-surface-container-lowest rounded-2xl shadow-sm p-4"><div class="flex items-center gap-3">' + (c.avatar_url ? '<img src="' + esc(c.avatar_url) + '" class="w-10 h-10 rounded-full object-cover">' : '<span class="w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-[20px]">person</span></span>') +
-          '<div class="flex-1 min-w-0"><b class="font-headline-sm text-headline-sm text-on-surface">' + esc(c.name || "(tanpa nama)") + '</b>' + (c.google_id ? ' <span class="font-label-sm text-label-sm font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full">MEMBER GOOGLE</span>' : '') +
-          '<p class="font-body-sm text-body-sm text-on-surface-variant truncate">' + esc(c.phone || "") + (c.email ? ' • ' + esc(c.email) : '') + '</p></div>' +
-          '<div class="text-right"><b class="font-label-md text-label-md text-primary-container flex items-center gap-1 justify-end"><span class="material-symbols-outlined text-[14px]" style="font-variation-settings:\'FILL\' 1">stars</span>' + Number(c.points || 0) + ' Pts</b><span class="font-body-sm text-body-sm text-on-surface-variant">Belanja ' + fmt(c.total_purchases || 0) + '</span></div></div>' +
-          (c.address ? '<p class="font-body-md text-body-md text-on-surface mt-2 flex items-start gap-1"><span class="material-symbols-outlined text-[16px] text-on-tertiary-container shrink-0 mt-0.5">location_on</span>' + esc(c.address) + '</p>' : '') +
-          (c.maps_url ? '<a class="font-label-md text-label-md underline text-primary-container" href="' + esc(c.maps_url) + '" target="_blank" rel="noopener">Buka lokasi di Google Maps</a>' : '') +
-          (c.last_visit ? '<p class="font-body-sm text-body-sm text-outline mt-1">Terakhir pesan: ' + esc(String(c.last_visit).slice(0, 10)) + '</p>' : '') + '</div>';
-      }).join("") + '</div>';
+
+  // ---------- sidebar GASPOS ----------
+  function toggleSidebar() {
+    var sb = $("sidebar"); if (!sb) return;
+    var expanded = !sb.classList.contains("lg:w-64");
+    sb.classList.toggle("lg:w-64", expanded);
+    sb.classList.toggle("lg:w-24", !expanded);
+    sb.classList.toggle("collapsed", !expanded);
+    var labels = sb.querySelectorAll ? sb.querySelectorAll(".sidebar-expand-only") : [];
+    for (var i = 0; i < labels.length; i++) labels[i].classList.toggle("hidden", !expanded);
+    var main = $("app");
+    if (main) { main.classList.toggle("lg:ml-64", expanded); main.classList.toggle("lg:ml-24", !expanded); }
+    var icon = $("toggle-icon"); if (icon) icon.style.transform = expanded ? "rotate(0deg)" : "rotate(180deg)";
+  }
+  function updateSidebarActive() {
+    var map = { pos: "pos", transactions: "transactions", customers: "customers", products: "products", categories: "categories", employees: "employees", reports: "reports", settings: "settings" };
+    var want = map[state.adminTab] || "pos";
+    document.querySelectorAll("#sidebar [data-nav]").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-nav") === want);
+    });
+    var disp = $("display-menu-btn"); if (disp) disp.classList.toggle("active", state.adminTab === "pos");
+  }
+  function closePopovers() {
+    var d = $("display-popover"); if (d) d.classList.remove("open");
+    var m = $("more-popover"); if (m) m.classList.remove("open");
+  }
+  function toggleDisplayPopover() {
+    var p = $("display-popover"); if (!p) return;
+    var willOpen = !p.classList.contains("open");
+    closePopovers();
+    if (!willOpen) return;
+    var btn = $("display-menu-btn");
+    if (btn && window.innerWidth >= 1024) {
+      var r = btn.getBoundingClientRect();
+      p.style.left = (r.right + 12) + "px";
+      p.style.top = Math.max(8, r.top) + "px";
+      p.style.bottom = "auto";
+    } else {
+      p.style.left = ""; p.style.top = ""; p.style.bottom = "";
     }
-    html += '</div>';
+    p.classList.add("open");
+    refreshIcons();
+  }
+  function toggleMorePopover() {
+    var p = $("more-popover"); if (!p) return;
+    var willOpen = !p.classList.contains("open");
+    closePopovers();
+    if (willOpen) { p.classList.add("open"); refreshIcons(); }
+  }
+  function setDisplay(sub) {
+    closePopovers();
+    if (sub === "pos") { state.adminTab = "pos"; if (state.view !== "admin") App.go("admin"); else render(); }
+    else if (sub === "kitchen") App.go("kitchen");
+    else if (sub === "customer") App.go("customer");
+    else if (sub === "queue") App.go("queue");
+  }
+  function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    } catch (e) {}
+  }
+  function openScanner() { alert("Pemindai barcode belum tersedia di versi ini."); }
+
+  // ---------- POS (v1 layout, logika v2) ----------
+  function posCategoryPillsHtml() {
+    var cats = ["All"].concat(CAT_ORDER.filter(function (c) { return state.categories.some(function (x) { return x.name === c; }); }));
+    return cats.map(function (c) {
+      var active = state.posCategory === c;
+      return '<button onclick="App.setPosCategory(\'' + esc(c) + '\')" class="px-4 py-1.5 lg:px-6 lg:py-2 text-xs lg:text-sm rounded-full whitespace-nowrap font-medium transition-colors ' + (active ? "bg-[#C7D957] text-black shadow-sm" : "bg-white text-gray-500 hover:bg-gray-100") + '">' + esc(c === "All" ? "All" : c) + '</button>';
+    }).join("");
+  }
+  function renderPosPills() { var el = $("pos-category-list"); if (el) el.innerHTML = posCategoryPillsHtml(); }
+  function posVisibleProducts() {
+    var list = state.products.filter(function (p) { return p.status === "Active"; });
+    if (state.posCategory !== "All") list = list.filter(function (p) { return p.category === state.posCategory; });
+    if (state.posSearch) {
+      var q = state.posSearch.toLowerCase();
+      list = list.filter(function (p) { return String(p.name).toLowerCase().indexOf(q) !== -1 || String(p.sku || "").toLowerCase().indexOf(q) !== -1; });
+    }
+    return list;
+  }
+  function renderPosGrid() {
+    var grid = $("pos-product-grid"); if (!grid) return;
+    var list = posVisibleProducts();
+    if (!list.length) { grid.innerHTML = '<div class="col-span-full py-20 text-center text-gray-400">No products found in this category.</div>'; return; }
+    grid.innerHTML = list.map(function (p) {
+      var badge = "";
+      if (p.stock !== null && p.stock !== undefined) {
+        badge = '<div class="flex items-center gap-1 absolute top-2 right-2 px-2 py-1 rounded-lg backdrop-blur-md bg-white/80 shadow-sm border border-black/5"><i data-lucide="package" class="w-2.5 h-2.5 ' + (Number(p.stock) <= 5 ? "text-red-600" : "text-black") + '"></i><span class="text-[10px] font-black ' + (Number(p.stock) <= 5 ? "text-red-600" : "text-black") + '">' + Number(p.stock) + '</span></div>';
+      }
+      var img = p.imageUrl
+        ? '<img src="' + esc(p.imageUrl) + '" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" onerror="this.style.display=\'none\'" alt="">'
+        : '<div class="w-full h-full bg-[#F7F0DC] flex items-center justify-center"><i data-lucide="' + (CAT_ICON_LUCIDE[p.category] || "utensils") + '" class="w-8 h-8 text-gray-400"></i></div>';
+      return '<button type="button" onclick="App.addToCart(\'' + esc(p.id) + '\')" class="bento-card p-4 flex flex-col text-left active:scale-95 transition-transform group">' +
+        '<div class="bg-gray-100 aspect-square rounded-xl mb-3 overflow-hidden relative">' + img + badge + '</div>' +
+        '<div class="flex flex-col flex-1"><h3 class="font-semibold text-sm leading-tight mb-2 line-clamp-2 h-10 text-gray-800">' + esc(displayName(p.name)) + '</h3>' +
+        '<div class="mt-auto"><div class="flex justify-between items-end mb-1"><span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">' + esc(p.category) + '</span></div>' +
+        '<p class="text-lg font-bold text-black">' + fmt(p.price) + '</p></div></div></button>';
+    }).join("");
+    refreshIcons();
+  }
+  function posCustomerName() {
+    if (!state.posCustomerId || state.posCustomerId === "Guest") return "Select Customer";
+    var c = (state.customers || []).find(function (x) { return String(x.id) === String(state.posCustomerId); });
+    return c ? c.name : "Select Customer";
+  }
+  function renderPosCartPanel() {
+    var itemsEl = $("pos-cart-items"), emptyEl = $("pos-cart-empty"), totalsEl = $("pos-cart-totals");
+    var barCount = $("pos-cart-bar-count"), barTotal = $("pos-cart-bar-total"), custBtn = $("pos-customer-name");
+    if (!itemsEl && !barCount) return;
+    var t = cartTotals();
+    var n = state.cart.reduce(function (a, c) { return a + c.qty; }, 0);
+    if (custBtn) custBtn.textContent = posCustomerName();
+    if (barCount) barCount.textContent = n + (n === 1 ? " Item" : " Items");
+    if (barTotal) barTotal.textContent = fmt(t.total);
+    if (emptyEl) emptyEl.style.display = state.cart.length ? "none" : "flex";
+    if (itemsEl) {
+      itemsEl.style.display = state.cart.length ? "block" : "none";
+      itemsEl.innerHTML = state.cart.map(function (c) {
+        return '<div class="flex items-start gap-3 p-3 border-2 border-gray-100 rounded-2xl mb-2">' +
+          '<div class="flex-1 min-w-0"><div class="font-bold text-sm truncate">' + esc(displayName(c.name)) + '</div>' +
+          '<div class="flex items-center gap-2 mt-1"><span class="text-xs text-gray-500">' + (c.isRedeemed ? "FREE (Redeemed)" : fmt(c.price)) + '</span>' +
+          (c.isRedeemed ? '<span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-lg bg-[#C7D957]/30 text-black">Redeem (' + (Number(c.point_price) * c.qty) + ' Pts)</span>' : "") + '</div></div>' +
+          '<div class="flex items-center gap-2 shrink-0"><div class="flex items-center bg-gray-100 rounded-lg p-1">' +
+          '<button type="button" onclick="App.changeQty(\'' + esc(c.key) + '\', -1)" class="w-6 h-6 flex items-center justify-center font-bold">-</button>' +
+          '<span class="w-8 text-center text-sm font-bold">' + c.qty + '</span>' +
+          '<button type="button" onclick="App.changeQty(\'' + esc(c.key) + '\', 1)" class="w-6 h-6 flex items-center justify-center font-bold">+</button></div>' +
+          '<button type="button" onclick="App.removeFromCart(\'' + esc(c.key) + '\')" class="p-2 text-gray-400 hover:text-red-600 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>';
+      }).join("");
+    }
+    if (totalsEl) {
+      totalsEl.innerHTML =
+        '<div class="flex justify-between items-center w-full text-sm text-gray-500 mb-1"><span>Subtotal</span><span class="font-bold text-black">' + fmt(t.subtotal) + '</span></div>' +
+        (t.service > 0 ? '<div class="flex justify-between text-xs text-gray-400"><span>Tausil</span><span class="font-bold text-black">' + fmt(t.service) + '</span></div>' : "") +
+        '<div class="flex justify-between text-xs text-gray-400"><span>Tax (' + Number(state.settings.tax_rate || 10) + '%)</span><span class="font-bold text-black">' + fmt(t.tax) + '</span></div>' +
+        (t.pointsCost ? '<div class="flex justify-between text-xs text-gray-400"><span>Poin dipakai</span><span class="font-bold text-black">' + t.pointsCost + ' Pts</span></div>' : "") +
+        '<div class="flex justify-between text-xl font-bold pt-2 border-t border-gray-100 mt-2"><span>Total</span><span>' + fmt(t.total) + '</span></div>';
+    }
+    refreshIcons();
+  }
+  function renderAdminPos() {
+    var html = '<div class="lg:grid lg:grid-cols-12 lg:gap-6">' +
+      '<div class="lg:col-span-7 xl:col-span-8 flex flex-col gap-2 p-3 md:p-0 pb-24 lg:pb-0">' +
+      '<div class="sticky top-0 bg-[#F7F0DC]/90 backdrop-blur-md z-30 -mx-4 pt-4 px-4 space-y-2 md:space-y-4">' +
+      '<div class="relative"><i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none"></i>' +
+      '<input type="text" id="pos-search" placeholder="Search product name or SKU..." value="' + esc(state.posSearch) + '" oninput="App.posSearch(this.value)" class="w-full pl-12 pr-24 py-3 md:py-4 bg-white border border-gray-100 rounded-2xl outline-none focus:border-[#C7D957] transition-all shadow-sm">' +
+      '<div class="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1">' +
+      '<button onclick="App.toggleFullscreen()" class="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-xl transition-all" title="Toggle Fullscreen"><i data-lucide="maximize" class="w-5 h-5"></i></button>' +
+      '<button onclick="App.openScanner()" class="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-xl transition-all" title="Scan Barcode"><i data-lucide="camera" class="w-5 h-5"></i></button>' +
+      '</div></div>' +
+      '<div class="relative"><nav id="pos-category-list" class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">' + posCategoryPillsHtml() + '</nav></div>' +
+      '</div>' +
+      '<main id="pos-product-grid" class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8"></main>' +
+      '</div>' +
+      // Right cart panel (desktop) — v1 #cart-panel
+      '<div class="hidden lg:block lg:col-span-5 xl:col-span-4 border-l border-gray-100 bg-white lg:bg-white/50 backdrop-blur-sm lg:p-6 relative">' +
+      '<section class="bento-card border-0 lg:border lg:p-6 flex flex-col lg:sticky lg:top-6 h-[calc(100vh-3rem)] shadow-none lg:shadow-xl rounded-none lg:rounded-3xl">' +
+      '<div class="justify-between items-center mb-4 flex gap-4"><h2 class="text-xl font-bold flex items-center gap-2 shrink-0"><i data-lucide="shopping-cart" class="text-[#C7D957]"></i> Order</h2>' +
+      '<div class="flex-1 max-w-[180px] relative"><button onclick="App.togglePosCustomerPicker()" class="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-medium text-left flex justify-between items-center hover:border-[#C7D957] transition-all"><span id="pos-customer-name" class="truncate">' + esc(posCustomerName()) + '</span><i data-lucide="search" class="w-3 h-3 text-gray-400"></i></button>' +
+      '<div id="pos-customer-picker" class="hidden absolute top-full right-0 mt-2 w-64 bg-white border border-gray-100 rounded-2xl shadow-2xl p-2 z-[70] max-h-72 overflow-y-auto"></div></div></div>' +
+      '<div id="pos-ordertype" class="flex bg-gray-100 p-1 rounded-xl mb-4">' +
+      ["Dine In", "Take Away", "Delivery"].map(function (v) {
+        return '<button data-v="' + v + '" onclick="App.setOrderType(this)" class="ot-btn flex-1 py-2 rounded-lg text-sm font-medium transition-all">' + (v === "Delivery" ? "Tausil" : v) + '</button>';
+      }).join("") + '</div>' +
+      '<div id="pos-cart-empty" class="text-center text-gray-400 flex-1 overflow-y-auto mb-4 items-center justify-center" style="display:flex">Your cart is empty</div>' +
+      '<div id="pos-cart-items" class="flex-1 overflow-y-auto space-y-2 pr-2 mb-4" style="display:none"></div>' +
+      '<div class="border-t space-y-1 py-4"><div id="pos-cart-totals"></div>' +
+      '<div class="pt-2"><button onclick="App.toggleCart(true)" class="w-full py-4 rounded-2xl bg-black text-white font-bold hover:opacity-90 flex items-center justify-center gap-2 transition-all active:scale-95"><i data-lucide="credit-card" class="w-5 h-5"></i> Pay Now</button></div>' +
+      '<p class="text-[11px] text-gray-400 text-center pt-2">Tekan Pay Now untuk membuka checkout — isi nama &amp; nomor WA pelanggan, lalu Accept &amp; Pesan via WhatsApp.</p>' +
+      '</div></section></div>' +
+      // Mobile cart bar (v1 mobile-cart-handle)
+      '<div id="pos-cart-bar" class="lg:hidden fixed left-0 right-0 bottom-[72px] z-30 px-4"><button onclick="App.toggleCart(true)" class="w-full bg-[#C7D957] text-black rounded-2xl shadow-lg px-4 py-3 flex items-center justify-between"><span class="flex items-center gap-2 font-bold text-sm"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span id="pos-cart-bar-count">0 Items</span></span><span class="flex items-center gap-2"><span id="pos-cart-bar-total" class="font-black text-lg">0 LE</span><i data-lucide="chevron-up" class="w-5 h-5"></i></span></button></div>' +
+      '</div>';
+    setTimeout(function () { renderPosGrid(); renderPosCartPanel(); syncCheckoutSelectors(); }, 0);
     return html;
   }
+  function posSearch(v) { state.posSearch = v; renderPosGrid(); }
+  function setPosCategory(c) { state.posCategory = c; renderPosPills(); renderPosGrid(); }
+  function togglePosCustomerPicker() {
+    var el = $("pos-customer-picker"); if (!el) return;
+    if (!el.classList.contains("hidden")) { el.classList.add("hidden"); return; }
+    var rows = '<button onclick="App.selectPosCustomer(\'Guest\')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#F7F0DC] font-medium text-sm">Guest</button>' +
+      (state.customers || []).slice(0, 50).map(function (c) {
+        return '<button onclick="App.selectPosCustomer(\'' + esc(c.id) + '\')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#F7F0DC] text-sm"><span class="font-bold block truncate">' + esc(c.name || "(tanpa nama)") + '</span><span class="text-xs text-gray-400">' + esc(c.phone || "") + (c.points ? ' • ' + Number(c.points) + ' Pts' : '') + '</span></button>';
+      }).join("");
+    el.innerHTML = rows || '<p class="text-sm text-gray-400 p-3">Belum ada pelanggan.</p>';
+    el.classList.remove("hidden");
+  }
+  function selectPosCustomer(id) {
+    state.posCustomerId = id;
+    var picker = $("pos-customer-picker"); if (picker) picker.classList.add("hidden");
+    var c = (state.customers || []).find(function (x) { return String(x.id) === String(id); });
+    if (c) {
+      // Isi form checkout dari pelanggan yang dipilih (dipakai submitOrder).
+      if ($("co-name")) $("co-name").value = c.name || "";
+      if ($("co-phone")) $("co-phone").value = c.phone || "";
+      if ($("co-address")) $("co-address").value = c.address || "";
+    }
+    renderPosCartPanel();
+  }
+
+  // ---------- Kitchen Display (v1 kanban, logika status v2) ----------
+  function kitchenNext(t) {
+    if (t.status === "Pending") return { status: "Dibuat", label: "Dibuat / Start Prep", cls: "bg-blue-500" };
+    if (t.status === "Dibuat") return t.orderType === "Delivery" ? { status: "Diantar", label: "Diantar", cls: "bg-teal-600" } : { status: "Selesai", label: "Selesai / Ready", cls: "bg-green-600" };
+    if (t.status === "Diantar") return { status: "Selesai", label: "Selesai", cls: "bg-green-600" };
+    return null;
+  }
+  function kanbanLaneHtml(id, title, dotCls, count, innerId) {
+    return '<div class="flex-1 min-w-[320px] flex flex-col bg-gray-100/50 rounded-3xl border border-gray-200">' +
+      '<div class="p-4 flex items-center justify-between"><h3 class="font-black text-sm uppercase tracking-widest text-gray-500 flex items-center gap-2"><span class="w-2 h-2 rounded-full ' + dotCls + '"></span> ' + title + '</h3>' +
+      '<span id="' + count + '" class="bg-white px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm">0</span></div>' +
+      '<div id="' + innerId + '" class="flex-1 p-3 space-y-3 overflow-y-auto"></div></div>';
+  }
   function renderKitchen() {
-    var html = '<div class="mt-4"><h2 class="font-headline-md text-headline-md text-on-surface">Kitchen Display</h2><p class="font-body-sm text-body-sm text-on-surface-variant">Pesanan hari ini — ubah status, link lacak pelanggan ikut berubah.</p><div id="kitchen-list" class="mt-4"></div></div>';
+    var html = '<div class="flex flex-col h-screen overflow-hidden p-4 md:p-6 bg-gray-50">' +
+      '<div class="mb-6 flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100"><div class="flex items-center gap-4">' +
+      '<button onclick="App.go(\'admin\')" class="p-2 hover:bg-gray-100 rounded-xl transition-all" title="Kembali ke Admin"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>' +
+      '<div><h2 class="text-xl md:text-2xl font-black uppercase tracking-tight">Kitchen Workflow</h2><p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Live Kanban Board</p></div></div>' +
+      '<button onclick="App.loadKitchen()" class="p-3 bg-gray-100 rounded-xl hover:bg-[#C7D957] transition-all" title="Refresh"><i data-lucide="refresh-cw" class="w-5 h-5"></i></button></div>' +
+      '<div class="flex-1 flex gap-4 overflow-x-auto pb-4 items-stretch">' +
+      kanbanLaneHtml("pending", "Pending", "bg-orange-400", "count-pending", "kanban-Pending") +
+      kanbanLaneHtml("dibuat", "Dibuat", "bg-blue-400", "count-dibuat", "kanban-Dibuat") +
+      kanbanLaneHtml("diantar", "Diantar", "bg-teal-400", "count-diantar", "kanban-Diantar") +
+      kanbanLaneHtml("selesai", "Selesai", "bg-green-600", "count-selesai", "kanban-Selesai") +
+      '</div></div>';
     setTimeout(loadKitchen, 0);
     return html;
   }
+  async function loadKitchen() {
+    var res = await window.supabaseApi.getTransactions();
+    var rows = (res && res.ok) ? (res.data || []) : [];
+    var lanes = { "Pending": $("kanban-Pending"), "Dibuat": $("kanban-Dibuat"), "Diantar": $("kanban-Diantar"), "Selesai": $("kanban-Selesai") };
+    if (!lanes["Pending"]) return;
+    var today = new Date().toISOString().slice(0, 10);
+    rows = rows.filter(function (t) { return String(t.timestamp || "").slice(0, 10) === today && t.status !== "Void"; });
+    Object.keys(lanes).forEach(function (k) { if (lanes[k]) lanes[k].innerHTML = ""; });
+    rows.forEach(function (t) {
+      var lane = lanes[t.status] || lanes["Pending"];
+      var items = [];
+      try { items = JSON.parse(t.items || "[]"); } catch (e) {}
+      var timeAgo = Math.max(0, Math.floor((Date.now() - new Date(t.timestamp).getTime()) / 60000));
+      var itemsHtml = items.map(function (it) {
+        return '<div class="flex gap-2 p-1.5 bg-gray-50 rounded-lg"><span class="font-black text-[10px] bg-black text-white w-5 h-5 flex items-center justify-center rounded shrink-0">' + Number(it.qty || 0) + '</span>' +
+          '<div class="flex-1 min-w-0"><p class="text-xs font-bold leading-tight">' + esc(displayName(it.name || "")) + '</p>' +
+          (it.notes ? '<p class="text-[10px] text-orange-600 italic font-bold mt-1 bg-orange-50 p-1 rounded">Note: ' + esc(it.notes) + '</p>' : '') + '</div></div>';
+      }).join("");
+      var shortId = String(t.id).indexOf("-") > -1 ? String(t.id).split("-")[1] : String(t.id).slice(-4);
+      var next = kitchenNext(t);
+      var nextBtn = next
+        ? '<button onclick="App.setTxnStatus(\'' + esc(t.id) + '\', \'' + next.status + '\')" class="w-full py-2 ' + next.cls + ' text-white text-xs font-bold rounded-xl mt-2">' + esc(next.label) + '</button>'
+        : '<span class="inline-flex items-center gap-1 mt-2 text-[11px] font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i>Selesai</span>';
+      lane.innerHTML += '<div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 hover:border-[#C7D957] transition-all">' +
+        '<div class="flex justify-between items-start mb-2"><span class="text-[10px] font-black uppercase text-gray-400">#' + esc(shortId) + '</span>' +
+        '<span class="text-[10px] font-bold ' + (timeAgo > 15 ? "text-red-600" : "text-gray-400") + '">' + timeAgo + 'm</span></div>' +
+        '<div class="space-y-1 mb-2">' + itemsHtml + '</div>' +
+        '<div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2"><span>' + esc(t.orderType || "") + '</span><span>' + esc(t.paymentMethod || "Cash") + '</span></div>' +
+        nextBtn + '</div>';
+    });
+    var setCount = function (id, n) { var el = $(id); if (el) el.textContent = n; };
+    setCount("count-pending", rows.filter(function (o) { return o.status === "Pending"; }).length);
+    setCount("count-dibuat", rows.filter(function (o) { return o.status === "Dibuat"; }).length);
+    setCount("count-diantar", rows.filter(function (o) { return o.status === "Diantar"; }).length);
+    setCount("count-selesai", rows.filter(function (o) { return o.status === "Selesai"; }).length);
+    refreshIcons();
+  }
 
+  // ---------- Transactions / History (v1) ----------
+  function txnCustomerName(t) {
+    var c = (state.customers || []).find(function (x) { return String(x.id) === String(t.customer_id || ""); });
+    return c ? c.name : "Guest";
+  }
+  function txnItems(t) {
+    var items = [];
+    try { items = typeof t.items === "string" ? JSON.parse(t.items) : (t.items || []); } catch (e) {}
+    return Array.isArray(items) ? items : [];
+  }
+  function renderTxnList() {
+    var el = $("txn-list"); if (!el) return;
+    var f = state.txnFilter;
+    var list = (state.transactions || []).filter(function (t) {
+      if (f.type !== "All" && t.orderType !== f.type) return false;
+      if (f.date && String(t.timestamp || "").slice(0, 10) !== f.date) return false;
+      if (f.q) {
+        var q = f.q.toLowerCase();
+        var hay = (String(t.id || "") + " " + txnCustomerName(t)).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+    if (!list.length) { el.innerHTML = '<p class="text-center text-gray-400 py-10">Tidak ada transaksi yang cocok.</p>'; return; }
+    el.innerHTML = list.slice(0, 100).map(function (t) {
+      var items = txnItems(t);
+      return '<div class="bento-card p-4"><div class="flex justify-between flex-wrap gap-2 items-center"><b class="font-mono text-sm">' + esc(t.id) + '</b>' + statusPill(t.status) + '</div>' +
+        '<p class="text-sm text-gray-500 mt-1">' + esc(txnCustomerName(t)) + ' • ' + esc(t.orderType || "") + ' • ' + fmt(t.total_amount) + ' • ' + esc(t.paymentMethod || "") + ' • ' + esc(String(t.timestamp || "").slice(0, 16).replace("T", " ")) + '</p>' +
+        '<p class="text-sm text-gray-800 mt-1">' + items.map(function (it) { return Number(it.qty || 0) + " × " + esc(displayName(it.name || "")); }).join(", ") + '</p>' +
+        '<div class="flex gap-2 mt-3 flex-wrap">' +
+        ["Dibuat", "Diantar", "Selesai"].map(function (s) {
+          return '<button onclick="App.setTxnStatus(\'' + esc(t.id) + '\', \'' + s + '\')" class="text-xs font-bold px-3 py-1.5 rounded-full bg-gray-100 hover:bg-[#C7D957] transition-colors">' + s + '</button>';
+        }).join("") +
+        '<a class="text-xs font-bold px-3 py-1.5 rounded-full bg-[#C7D957]/30 text-black hover:bg-[#C7D957] transition-colors" href="' + trackingLink(t.id) + '" target="_blank" rel="noopener">Link Lacak</a>' +
+        (t.status !== "Void" && t.status !== "Selesai" ? '<button onclick="App.voidTxn(\'' + esc(t.id) + '\')" class="text-xs font-bold px-3 py-1.5 rounded-full text-red-600 hover:bg-red-50 transition-colors">Void</button>' : "") +
+        '</div></div>';
+    }).join("");
+  }
+  function renderAdminTransactions() {
+    var f = state.txnFilter;
+    var html = adminHeaderCard("Transactions", "Recent orders and payment status", "") +
+      '<div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3">' +
+      '<div class="flex-1 flex items-center gap-2 bg-gray-50 rounded-xl px-3"><i data-lucide="search" class="w-4 h-4 text-gray-400 shrink-0"></i><input id="txn-q" type="text" placeholder="Search ID or Customer..." value="' + esc(f.q) + '" oninput="App.setTxnFilter(\'q\', this.value)" class="bg-transparent border-0 text-sm font-medium outline-none w-full py-2.5"></div>' +
+      '<select id="txn-type" onchange="App.setTxnFilter(\'type\', this.value)" class="bg-white border border-gray-100 rounded-xl px-3 py-2.5 text-sm font-bold outline-none">' +
+      ["All", "Dine In", "Take Away", "Delivery"].map(function (v) { return '<option value="' + v + '"' + (f.type === v ? " selected" : "") + '>' + (v === "All" ? "Semua Tipe" : v === "Delivery" ? "Tausil" : v) + '</option>'; }).join("") + '</select>' +
+      '<input id="txn-date" type="date" value="' + esc(f.date) + '" onchange="App.setTxnFilter(\'date\', this.value)" class="bg-white border border-gray-100 rounded-xl px-4 py-2.5 text-sm font-bold outline-none">' +
+      '</div>' +
+      '<div id="txn-list" class="space-y-3"></div>';
+    setTimeout(renderTxnList, 0);
+    return html;
+  }
+  function setTxnFilter(field, value) {
+    state.txnFilter[field] = value;
+    if (field !== "q") render(); else renderTxnList();
+  }
+
+  // ---------- Customers (v1 white cards, data v2) ----------
+  function renderAdminCustomers() {
+    var html = adminHeaderCard("Customers", "Member Google dan Guest — data yang sama dengan yang dilihat member di Profile", "") +
+      '<p class="text-sm text-gray-500">Satu baris per pelanggan — member Google dan Guest dengan nomor WA yang sama digabung (cocok nomor WA / email).</p>' +
+      '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">' + (state.customers || []).map(function (c) {
+        var initial = String(c.name || "?").trim().charAt(0).toUpperCase();
+        return '<div class="bento-card p-4"><div class="flex items-center gap-3">' +
+          (c.avatar_url ? '<img src="' + esc(c.avatar_url) + '" class="w-11 h-11 rounded-full object-cover shrink-0" alt="">' : '<span class="w-11 h-11 rounded-full bg-[#C7D957] text-black flex items-center justify-center font-bold shrink-0">' + esc(initial) + '</span>') +
+          '<div class="flex-1 min-w-0"><b class="font-bold truncate block">' + esc(c.name || "(tanpa nama)") + '</b>' + (c.google_id ? ' <span class="text-[10px] font-black bg-[#C7D957] text-black px-2 py-0.5 rounded-full">MEMBER GOOGLE</span>' : "") +
+          '<p class="text-xs text-gray-400 truncate">' + esc(c.phone || "") + (c.email ? " • " + esc(c.email) : "") + '</p></div>' +
+          '<div class="text-right shrink-0"><b class="text-sm font-bold text-black flex items-center gap-1 justify-end"><i data-lucide="star" class="w-3.5 h-3.5 fill-current"></i>' + Number(c.points || 0) + ' Pts</b><span class="text-xs text-gray-400">Belanja ' + fmt(c.total_purchases || 0) + '</span></div></div>' +
+          (c.address ? '<p class="text-sm text-gray-600 mt-2 flex items-start gap-1"><i data-lucide="map-pin" class="w-4 h-4 text-gray-400 shrink-0 mt-0.5"></i>' + esc(c.address) + '</p>' : "") +
+          (c.maps_url ? '<a class="text-xs font-bold underline text-black" href="' + esc(c.maps_url) + '" target="_blank" rel="noopener">Buka lokasi di Google Maps</a>' : "") +
+          (c.last_visit ? '<p class="text-xs text-gray-400 mt-1">Terakhir pesan: ' + esc(String(c.last_visit).slice(0, 10)) + '</p>' : "") + '</div>';
+      }).join("") + '</div>';
+    if (!(state.customers || []).length) html += '<p class="text-center text-gray-400 py-10">Belum ada pelanggan.</p>';
+    return html;
+  }
+
+  // ---------- Management: Products / Categories / Staff (v1 bento cards) ----------
+  function mgmtTitle(tab) {
+    return { products: ["Products", "Kelola menu, harga, stok, dan foto produk"], categories: ["Categories", "Kelola kategori menu"], employees: ["Staff", "Kelola akun staf dan PIN login"] }[tab] || ["Management", ""];
+  }
+  function renderAdminManagement(tab) {
+    var t = mgmtTitle(tab);
+    var html = adminHeaderCard(t[0], t[1], blackBtn("Add New", "App.openMgmtForm('" + tab + "')", "plus"));
+    if (tab === "products") {
+      html += '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">' + state.products.map(function (p) {
+        var stockClass = (p.stock !== null && Number(p.stock) <= 5) ? "text-red-600 font-bold" : "text-gray-500";
+        return '<div class="bento-card p-4 flex gap-4 items-center">' +
+          (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" class="w-16 h-16 rounded-xl object-cover bg-gray-50 shrink-0" alt="">' : '<div class="w-16 h-16 rounded-xl bg-[#F7F0DC] flex items-center justify-center shrink-0"><i data-lucide="' + (CAT_ICON_LUCIDE[p.category] || "utensils") + '" class="w-6 h-6 text-gray-400"></i></div>') +
+          '<div class="flex-1 min-w-0"><h4 class="font-bold truncate">' + esc(displayName(p.name)) + '</h4>' +
+          '<p class="text-sm text-gray-400 uppercase tracking-tighter mb-1">' + esc(p.sku || "No SKU") + '</p>' +
+          '<p class="text-sm text-gray-500">' + esc(p.category) + ' &bull; ' + fmt(p.price) + (Number(p.point_price) > 0 ? " &bull; " + Number(p.point_price) + " Pts" : "") +
+          '<br><span class="' + stockClass + '">In Stock: ' + (p.stock === null || p.stock === undefined ? "&infin;" : Number(p.stock)) + '</span> &bull; ' + esc(p.status || "") + '</p></div>' +
+          '<div class="flex flex-col gap-2 shrink-0">' +
+          '<button onclick="App.openMgmtForm(\'products\', \'' + esc(p.id) + '\')" class="p-2 hover:bg-gray-100 rounded-lg" title="Edit"><i data-lucide="edit-3" class="w-4 h-4"></i></button>' +
+          '<button onclick="App.deleteMgmtRecord(\'products\', \'' + esc(p.id) + '\')" class="p-2 hover:bg-red-50 text-red-600 rounded-lg" title="Hapus"><i data-lucide="trash-2" class="w-4 h-4"></i></button>' +
+          '</div></div>';
+      }).join("") + '</div>';
+    } else if (tab === "categories") {
+      html += '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">' + state.categories.map(function (c) {
+        return '<div class="bento-card p-6 flex justify-between items-center"><span class="font-bold text-lg">' + esc(c.name) + '</span><div class="flex gap-2">' +
+          '<button onclick="App.openMgmtForm(\'categories\', \'' + esc(c.id) + '\')" class="p-2 hover:bg-gray-100 rounded-lg" title="Edit"><i data-lucide="edit-3" class="w-4 h-4"></i></button>' +
+          '<button onclick="App.deleteMgmtRecord(\'categories\', \'' + esc(c.id) + '\')" class="p-2 hover:bg-red-50 text-red-600 rounded-lg" title="Hapus"><i data-lucide="trash-2" class="w-4 h-4"></i></button>' +
+          '</div></div>';
+      }).join("") + '</div>';
+    } else if (tab === "employees") {
+      html += '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">' + (state.employees || []).map(function (e) {
+        var initial = String(e.name || "?").trim().charAt(0).toUpperCase();
+        return '<div class="bento-card p-4 flex gap-4 items-center">' +
+          '<div class="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center font-bold overflow-hidden shrink-0">' + (e.image_url ? '<img src="' + esc(e.image_url) + '" class="w-full h-full object-cover" alt="">' : esc(initial)) + '</div>' +
+          '<div class="flex-1 min-w-0"><h4 class="font-bold truncate">' + esc(e.name) + '</h4><p class="text-xs text-gray-400 uppercase tracking-widest">' + esc(e.role || "") + '</p></div>' +
+          '<div class="flex flex-col gap-2 shrink-0">' +
+          '<button onclick="App.openMgmtForm(\'employees\', \'' + esc(e.id) + '\')" class="p-2 hover:bg-gray-100 rounded-lg" title="Edit / ganti PIN"><i data-lucide="edit-3" class="w-4 h-4"></i></button>' +
+          '<button onclick="App.deleteMgmtRecord(\'employees\', \'' + esc(e.id) + '\')" class="p-2 hover:bg-red-50 text-red-600 rounded-lg" title="Hapus"><i data-lucide="trash-2" class="w-4 h-4"></i></button>' +
+          '</div></div>';
+      }).join("") + '</div>';
+    }
+    return html;
+  }
+  function mgmtField(label, inner) {
+    return '<div><label class="text-xs font-bold uppercase text-gray-400">' + esc(label) + '</label>' + inner + '</div>';
+  }
+  function mgmtInput(name, value, opts) {
+    opts = opts || {};
+    return '<input name="' + name + '" value="' + esc(value == null ? "" : value) + '" ' + (opts.type ? 'type="' + opts.type + '" ' : "") + (opts.placeholder ? 'placeholder="' + esc(opts.placeholder) + '" ' : "") + (opts.required ? "required " : "") + 'class="w-full p-3 bg-gray-50 rounded-xl border border-gray-100 outline-none focus:border-[#C7D957]">';
+  }
+  function mgmtFormFields(type, item) {
+    item = item || {};
+    if (type === "products") {
+      var catOptions = state.categories.map(function (c) { return '<option value="' + esc(c.name) + '"' + (item.category === c.name ? " selected" : "") + '>' + esc(c.name) + '</option>'; }).join("");
+      return mgmtField("Nama Produk", mgmtInput("name", item.name, { required: true })) +
+        '<div class="grid grid-cols-2 gap-3">' + mgmtField("SKU", mgmtInput("sku", item.sku)) + mgmtField("Kategori", '<select name="category" class="w-full p-3 bg-gray-50 rounded-xl border border-gray-100 outline-none">' + catOptions + '</select>') + '</div>' +
+        '<div class="grid grid-cols-3 gap-3">' + mgmtField("Harga (LE)", mgmtInput("price", item.price, { type: "number", required: true })) + mgmtField("Stok", mgmtInput("stock", item.stock, { type: "number" })) + mgmtField("Harga Poin", mgmtInput("point_price", item.point_price || 0, { type: "number" })) + '</div>' +
+        mgmtField("Status", '<select name="status" class="w-full p-3 bg-gray-50 rounded-xl border border-gray-100 outline-none"><option' + (item.status !== "Inactive" ? " selected" : "") + '>Active</option><option' + (item.status === "Inactive" ? " selected" : "") + '>Inactive</option></select>') +
+        mgmtField("Foto (image_url)", mgmtInput("image_url", item.imageUrl, { placeholder: "https://... (kosong = tanpa foto)" }));
+    }
+    if (type === "categories") {
+      return mgmtField("Nama Kategori", mgmtInput("name", item.name, { required: true }));
+    }
+    if (type === "employees") {
+      var roles = ["Admin", "Admin Demo", "Supervisor", "Staff"];
+      var roleOptions = roles.map(function (r) { return '<option' + (item.role === r ? " selected" : "") + '>' + r + '</option>'; }).join("");
+      return mgmtField("Nama", mgmtInput("name", item.name, { required: true })) +
+        mgmtField("Peran", '<select name="role" class="w-full p-3 bg-gray-50 rounded-xl border border-gray-100 outline-none">' + roleOptions + '</select>') +
+        mgmtField("PIN Baru (6 digit)", mgmtInput("pin", "", { type: "password", placeholder: "Kosongkan = PIN lama tetap" })) +
+        mgmtField("Foto (image_url)", mgmtInput("image_url", item.image_url, { placeholder: "https://... (opsional)" }));
+    }
+    return "";
+  }
+  function openMgmtForm(type, id) {
+    state.mgmtType = type; state.mgmtId = id || null;
+    var coll = type === "products" ? state.products : type === "categories" ? state.categories : state.employees;
+    var item = id ? (coll || []).find(function (x) { return String(x.id) === String(id); }) : null;
+    if (id && !item) item = {};
+    var title = (id ? "Edit " : "Add New ") + ({ products: "Product", categories: "Category", employees: "Staff" }[type] || "");
+    var t = $("crud-title"); if (t) t.textContent = title;
+    var f = $("crud-fields"); if (f) f.innerHTML = mgmtFormFields(type, item || {});
+    var err = $("crud-error"); if (err) err.classList.add("hidden");
+    var m = $("crud-modal"); if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
+    refreshIcons();
+  }
+  function closeMgmtForm() {
+    var m = $("crud-modal"); if (m) { m.classList.add("hidden"); m.classList.remove("flex"); }
+    state.mgmtType = ""; state.mgmtId = null;
+  }
+  async function saveMgmtForm() {
+    var type = state.mgmtType; if (!type) return;
+    var prefix = { products: "P", categories: "CAT", employees: "E" }[type] || "X";
+    var record = { id: state.mgmtId || (prefix + Date.now()) };
+    var fields = document.querySelectorAll("#crud-fields [name]");
+    for (var i = 0; i < fields.length; i++) {
+      var name = fields[i].getAttribute("name"), val = fields[i].value;
+      if (name === "price" || name === "stock" || name === "point_price") record[name] = val === "" ? null : Number(val);
+      else record[name] = val;
+    }
+    if (type === "products" && !record.name) { var e1 = $("crud-error"); if (e1) { e1.textContent = "Nama produk wajib diisi."; e1.classList.remove("hidden"); } return; }
+    if (type === "employees" && record.pin && !/^\d{6}$/.test(String(record.pin))) { var e2 = $("crud-error"); if (e2) { e2.textContent = "PIN harus 6 digit angka."; e2.classList.remove("hidden"); } return; }
+    var res = await window.supabaseApi.saveRecord(SHEET_BY_MGMT[type], record);
+    if (!res || !res.ok) { var e3 = $("crud-error"); if (e3) { e3.textContent = (res && res.message) || "Gagal menyimpan."; e3.classList.remove("hidden"); } return; }
+    closeMgmtForm();
+    await refreshStaffData();
+  }
+  async function deleteMgmtRecord(type, id) {
+    if (!window.confirm("Hapus data ini?")) return;
+    var res = await window.supabaseApi.deleteRecord(SHEET_BY_MGMT[type], id);
+    if (!res || !res.ok) { alert((res && res.message) || "Gagal menghapus."); return; }
+    await refreshStaffData();
+  }
+
+  // ---------- Reports (dihitung dari transaksi — tanpa endpoint baru) ----------
+  function reportTxns() {
+    var from = state.reportFrom, to = state.reportTo;
+    return (state.transactions || []).filter(function (t) {
+      if (t.status === "Void") return false;
+      var d = String(t.timestamp || "").slice(0, 10);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+  }
+  function renderAdminReports() {
+    var list = reportTxns();
+    var revenue = list.reduce(function (a, t) { return a + Number(t.total_amount || 0); }, 0);
+    var items = 0, topMap = {}, payMap = {};
+    list.forEach(function (t) {
+      txnItems(t).forEach(function (it) {
+        items += Number(it.qty || 0);
+        var k = displayName(it.name || "");
+        topMap[k] = (topMap[k] || 0) + Number(it.qty || 0);
+      });
+      var pm = t.paymentMethod || "Cash";
+      payMap[pm] = payMap[pm] || { count: 0, sum: 0 };
+      payMap[pm].count += 1; payMap[pm].sum += Number(t.total_amount || 0);
+    });
+    var top = Object.keys(topMap).map(function (k) { return { name: k, qty: topMap[k] }; }).sort(function (a, b) { return b.qty - a.qty; }).slice(0, 5);
+    var stat = function (label, value) {
+      return '<div class="bento-card p-5"><p class="text-xs font-bold uppercase tracking-widest text-gray-400">' + esc(label) + '</p><h3 class="text-2xl font-black mt-1">' + esc(value) + '</h3></div>';
+    };
+    var html = adminHeaderCard("Reports", "Ringkasan penjualan dari transaksi (dihitung di aplikasi)", "") +
+      '<div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3 items-center">' +
+      '<label class="text-xs font-bold uppercase text-gray-400">Dari</label><input type="date" value="' + esc(state.reportFrom) + '" onchange="App.setReportDate(\'from\', this.value)" class="p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-sm font-bold outline-none">' +
+      '<label class="text-xs font-bold uppercase text-gray-400">Sampai</label><input type="date" value="' + esc(state.reportTo) + '" onchange="App.setReportDate(\'to\', this.value)" class="p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-sm font-bold outline-none">' +
+      '<span class="text-sm text-gray-400">' + list.length + ' transaksi</span></div>' +
+      '<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">' +
+      stat("Total Revenue", fmt(revenue)) + stat("Orders", String(list.length)) +
+      stat("Avg Ticket", fmt(list.length ? Math.round(revenue / list.length) : 0)) + stat("Avg Items / Order", list.length ? (items / list.length).toFixed(1) : "0.0") +
+      '</div>' +
+      '<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">' +
+      '<div class="bento-card p-5"><h3 class="font-bold mb-3">Top Products</h3>' + (top.length ? top.map(function (p, i) {
+        return '<div class="flex justify-between items-center py-2 border-b border-gray-50 last:border-0"><span class="text-sm font-medium">' + (i + 1) + '. ' + esc(p.name) + '</span><b class="text-sm">' + p.qty + '×</b></div>';
+      }).join("") : '<p class="text-sm text-gray-400">Belum ada penjualan pada periode ini.</p>') + '</div>' +
+      '<div class="bento-card p-5"><h3 class="font-bold mb-3">Pembayaran</h3>' + (Object.keys(payMap).length ? Object.keys(payMap).map(function (k) {
+        var pct = revenue ? Math.round(payMap[k].sum / revenue * 100) : 0;
+        return '<div class="py-2"><div class="flex justify-between text-sm"><span class="font-medium">' + esc(k) + '</span><b>' + fmt(payMap[k].sum) + ' (' + payMap[k].count + '×)</b></div><div class="h-2 bg-gray-100 rounded-full mt-1 overflow-hidden"><div class="h-full bg-[#C7D957] rounded-full" style="width:' + pct + '%"></div></div></div>';
+      }).join("") : '<p class="text-sm text-gray-400">Belum ada penjualan pada periode ini.</p>') + '</div></div>';
+    return html;
+  }
+  function setReportDate(which, value) {
+    if (which === "from") state.reportFrom = value; else state.reportTo = value;
+    render();
+  }
+
+  // ---------- Settings (hanya field yang ada — via updateSetting) ----------
+  function renderAdminSettings() {
+    var s = state.settings || {};
+    var fields = [
+      ["restaurant_name", "Nama Resto", "text"],
+      ["currency", "Mata Uang", "text"],
+      ["whatsapp_admin_phone", "WhatsApp Admin", "text"],
+      ["tausil_fee", "Biaya Tausil (LE, Delivery saja)", "number"],
+      ["tax_rate", "Pajak (%)", "number"],
+      ["loyalty_rate", "Poin: 1 poin tiap X LE", "number"],
+      ["egp_to_idr_rate", "Kurs EGP → IDR", "text"],
+    ];
+    var html = adminHeaderCard("Settings", "Pengaturan resto — tersimpan di database, langsung berlaku", blackBtn("Simpan", "App.saveSettings()", "save")) +
+      '<div class="bento-card p-6 grid grid-cols-1 md:grid-cols-2 gap-4">' +
+      fields.map(function (f) {
+        return '<div><label class="text-xs font-bold uppercase text-gray-400">' + esc(f[1]) + '</label>' +
+          '<input id="set-' + f[0] + '" type="' + f[2] + '" value="' + esc(s[f[0]] || "") + '" class="w-full p-3 bg-gray-50 rounded-xl border border-gray-100 outline-none focus:border-[#C7D957] mt-1"></div>';
+      }).join("") + '</div>' +
+      '<p class="text-sm text-gray-400">PIN staf diganti lewat menu Staff (Edit → PIN Baru). Void PIN &amp; Kitchen PIN tidak ditampilkan di sini.</p>';
+    return html;
+  }
+  async function saveSettings() {
+    var keys = ["restaurant_name", "currency", "whatsapp_admin_phone", "tausil_fee", "tax_rate", "loyalty_rate", "egp_to_idr_rate"];
+    var map = {};
+    keys.forEach(function (k) { var el = $("set-" + k); if (el) map[k] = el.value; });
+    var res = await window.supabaseApi.updateSettingsBulk(map);
+    if (!res || !res.ok) { alert((res && res.message) || "Gagal menyimpan pengaturan."); return; }
+    await refreshStaffData();
+    alert("Pengaturan tersimpan.");
+  }
+
+  // ---------- Customer View (publik, tanpa PIN, refresh 15 dtk) ----------
+  function custViewTotals(order) {
+    var items = Array.isArray(order.items) ? order.items : [];
+    if (!items.length && typeof order.items === "string") { try { items = JSON.parse(order.items) || []; } catch (e) {} }
+    var sub = items.reduce(function (a, it) { return a + Number(it.price || 0) * Number(it.qty || 0); }, 0);
+    var service = order.orderType === "Delivery" ? Number(state.settings.tausil_fee || 5) : 0;
+    var tax = Math.round(sub * Number(state.settings.tax_rate || 10) / 100);
+    return { items: items, subtotal: sub, service: service, tax: tax, total: (order.total_amount != null ? Number(order.total_amount) : sub + service + tax) };
+  }
+  async function loadCustomerView() {
+    if (state.demoMode) { state.customerView = { order: null, error: "" }; render(); return; }
+    try {
+      var order = null, error = "";
+      if (state.orderId) {
+        var res = await window.supabaseApi.trackOrder(state.orderId);
+        if (res && res.ok) order = res.data; else error = (res && res.message) || "Order tidak ditemukan.";
+      } else {
+        var list = await window.supabaseApi.getTransactions();
+        var rows = (list && list.ok) ? (list.data || []) : [];
+        var active = rows.filter(function (t) { return ["Pending", "Dibuat", "Diantar"].indexOf(t.status) !== -1; });
+        active.sort(function (a, b) { return String(b.timestamp || "").localeCompare(String(a.timestamp || "")); });
+        if (active.length) {
+          var r2 = await window.supabaseApi.trackOrder(active[0].id);
+          order = (r2 && r2.ok) ? r2.data : active[0];
+        }
+      }
+      state.customerView = { order: order, error: error };
+    } catch (e) { state.customerView = { order: null, error: String(e) }; }
+    render();
+  }
+  function renderCustomerView() {
+    var cv = state.customerView;
+    if (!cv) { setTimeout(loadCustomerView, 0); return '<div class="h-screen flex items-center justify-center bg-white"><p class="text-gray-400 font-medium">Memuat pesanan...</p></div>'; }
+    var order = cv.order;
+    var staffName = state.staffUser ? (state.staffUser.name || "Staff") : "—";
+    var left;
+    if (cv.error) {
+      left = '<div class="h-full flex flex-col items-center justify-center text-center py-20"><p class="text-lg font-bold">' + esc(cv.error) + '</p><p class="text-sm text-gray-400 mt-1">Periksa nomor order lalu coba lagi.</p></div>';
+    } else if (!order) {
+      left = '<div class="h-full flex flex-col items-center justify-center text-center py-20 opacity-30"><i data-lucide="shopping-basket" class="w-12 h-12 mb-2"></i><p class="text-sm font-bold uppercase tracking-widest">Awaiting Order</p></div>';
+    } else {
+      var t = custViewTotals(order);
+      var itemsHtml = t.items.map(function (it) {
+        return '<div class="flex items-start justify-between py-2 border-b border-gray-100/50"><div class="flex-1"><div class="flex items-center gap-2"><span class="font-black text-xs bg-black text-white px-1.5 rounded">' + Number(it.qty || 0) + 'x</span><h3 class="text-sm font-bold truncate">' + esc(displayName(it.name || "")) + '</h3></div>' +
+          (it.notes ? '<p class="text-[10px] text-orange-500 italic font-medium ml-7 mt-1">"' + esc(it.notes) + '"</p>' : "") + '</div>' +
+          '<p class="text-sm font-black">' + fmt(Number(it.price || 0) * Number(it.qty || 0)) + '</p></div>';
+      }).join("");
+      left = '<div id="cust-view-items" class="flex-1 overflow-y-auto space-y-2 pr-2 mb-6 border-y border-gray-200 py-4">' + itemsHtml + '</div>' +
+        '<div class="space-y-2"><div class="flex justify-between text-sm text-gray-500"><span class="font-medium">Subtotal</span><span class="font-bold">' + fmt(t.subtotal) + '</span></div>' +
+        '<div class="flex justify-between text-sm text-gray-500"><span class="font-medium">Service &amp; Tax</span><span class="font-bold">' + fmt(t.service + t.tax) + '</span></div>' +
+        '<div class="pt-4 mt-2 border-t-2 border-dashed border-gray-300 flex justify-between items-end"><span class="text-xl font-black">GRAND TOTAL</span><span class="text-4xl font-black tracking-tighter">' + fmt(t.total) + '</span></div></div>';
+    }
+    var name = order ? (order.customerName || "Guest") : "Guest";
+    var type = order ? (order.orderType || "-") : "-";
+    var total = order ? fmt(custViewTotals(order).total) : fmt(0);
+    var status = order ? order.status : "";
+    var html = '<div class="grid grid-cols-1 lg:grid-cols-12 h-screen overflow-hidden bg-white">' +
+      '<div class="lg:col-span-7 xl:col-span-8 p-8 flex flex-col border-r border-gray-100 bg-gray-50">' +
+      '<div class="mb-4 flex items-center gap-4">' +
+      (state.staffUser ? '<button onclick="App.go(\'admin\')" class="w-12 h-12 bg-white text-gray-600 rounded-2xl flex items-center justify-center hover:bg-[#C7D957] hover:text-black transition-all shadow-sm border border-gray-100"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>' : "") +
+      '<div><h2 class="text-xl md:text-4xl font-black uppercase tracking-tighter">SUMMARY</h2>' +
+      '<div class="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-1"><span>' + esc(name) + '</span> &bull; <span>' + esc(staffName) + '</span> &bull; <span>' + esc(type) + '</span></div></div></div>' +
+      left +
+      '</div>' +
+      '<div class="lg:col-span-5 xl:col-span-4 relative overflow-hidden bg-black text-white hidden lg:flex flex-col items-center justify-center p-8 text-center">' +
+      '<i data-lucide="layout-grid" class="w-12 h-12 mb-4"></i>' +
+      '<h3 class="text-3xl font-black uppercase tracking-tighter">Khatulistiwa Resto</h3>' +
+      '<p class="text-gray-400 text-sm mt-1">Cita Rasa Nusantara &bull; Cairo, Mesir</p>' +
+      (order ? '<p class="text-xs font-bold uppercase tracking-widest text-gray-400 mt-8">Order #' + esc(String(order.id).split("-").pop()) + '</p>' +
+      '<p class="text-5xl font-black tracking-tighter mt-2">' + total + '</p>' +
+      '<div class="mt-4">' + statusPill(status) + '</div>' : "") +
+      '</div></div>';
+    return html;
+  }
+
+  // ---------- Queue View (publik, tanpa PIN, refresh 15 dtk) ----------
+  function queueShortId(id) {
+    var s = String(id || "");
+    return s.indexOf("-") > -1 ? s.split("-").pop() : s.slice(-4);
+  }
+  async function loadQueueView() {
+    if (state.demoMode) { state.queueView = { preparing: [], ready: [] }; render(); return; }
+    try {
+      var list = await window.supabaseApi.getTransactions();
+      var rows = (list && list.ok) ? (list.data || []) : [];
+      var today = new Date().toISOString().slice(0, 10);
+      rows = rows.filter(function (t) { return String(t.timestamp || "").slice(0, 10) === today && t.status !== "Void"; });
+      rows.sort(function (a, b) { return String(a.timestamp || "").localeCompare(String(b.timestamp || "")); });
+      state.queueView = {
+        preparing: rows.filter(function (t) { return t.status === "Pending" || t.status === "Dibuat"; }),
+        ready: rows.filter(function (t) { return t.status === "Diantar"; }),
+      };
+    } catch (e) { state.queueView = { preparing: [], ready: [] }; }
+    render();
+  }
+  function queueCardHtml(t, ready) {
+    return '<div class="' + (ready ? "bg-green-50 border border-green-200" : "bg-gray-100") + ' px-8 py-4 rounded-2xl flex justify-between items-center"><span class="text-3xl font-black text-gray-800">#' + esc(queueShortId(t.id)) + '</span><span class="text-xs font-bold text-gray-400 uppercase tracking-widest">' + esc(t.orderType || "") + '</span></div>';
+  }
+  function renderQueueView() {
+    var q = state.queueView;
+    if (!q) { setTimeout(loadQueueView, 0); return '<div class="h-screen flex items-center justify-center bg-white"><p class="text-gray-400 font-medium">Memuat antrean...</p></div>'; }
+    var prep = q.preparing.map(function (t) { return queueCardHtml(t, false); }).join("") || '<p class="text-gray-400 text-sm py-4">Belum ada pesanan yang disiapkan.</p>';
+    var ready = q.ready.map(function (t) { return queueCardHtml(t, true); }).join("") || '<p class="text-gray-400 text-sm py-4">Belum ada pesanan yang siap.</p>';
+    var html = '<div class="grid grid-cols-1 lg:grid-cols-12 h-screen overflow-hidden bg-white">' +
+      '<div class="lg:col-span-8 grid grid-cols-1 lg:grid-cols-2 h-full">' +
+      '<div class="p-8 border-r border-gray-100 flex flex-col"><div class="flex items-center gap-4 mb-8">' +
+      (state.staffUser ? '<button onclick="App.go(\'admin\')" class="w-12 h-12 bg-gray-100 text-gray-600 rounded-2xl flex items-center justify-center hover:bg-[#C7D957] hover:text-black transition-all"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>' : "") +
+      '<div><h2 class="text-3xl font-black uppercase tracking-tighter">Preparing</h2><p class="text-xs font-bold text-gray-400 uppercase tracking-widest">In the Kitchen</p></div></div>' +
+      '<div class="flex-1 space-y-3 content-start overflow-y-auto pr-2">' + prep + '</div></div>' +
+      '<div class="p-8 bg-green-50/60 flex flex-col"><div class="flex items-center gap-4 mb-8">' +
+      '<div class="w-12 h-12 bg-green-600 text-white rounded-2xl flex items-center justify-center"><i data-lucide="check-check" class="w-6 h-6"></i></div>' +
+      '<div><h2 class="text-3xl font-black uppercase tracking-tighter">Ready</h2><p class="text-xs font-bold text-green-700 uppercase tracking-widest">Pick Up Now</p></div></div>' +
+      '<div class="flex-1 space-y-3 content-start overflow-y-auto pr-2">' + ready + '</div></div>' +
+      '</div>' +
+      '<div class="lg:col-span-4 relative overflow-hidden bg-black text-white hidden lg:flex flex-col items-center justify-center p-8 text-center">' +
+      '<i data-lucide="layout-grid" class="w-12 h-12 mb-4"></i>' +
+      '<h3 class="text-3xl font-black uppercase tracking-tighter">Khatulistiwa Resto</h3>' +
+      '<p class="text-gray-400 text-sm mt-1">Antrean Pesanan</p>' +
+      '<p id="queue-clock" class="text-5xl font-black tracking-tighter mt-8">--:--</p>' +
+      '<p class="text-sm text-gray-400 mt-4">' + q.preparing.length + ' disiapkan &bull; ' + q.ready.length + ' siap</p>' +
+      '</div></div>';
+    return html;
+  }
+
+  // ---------- admin shell ----------
+  function renderAdmin() {
+    if (!state.staffUser) { showStaffLogin(); return '<div class="mt-8 text-center text-gray-500 font-medium">Masuk sebagai staf untuk membuka Admin.</div>'; }
+    hideStaffLogin();
+    var tab = state.adminTab === "kitchen" ? "pos" : state.adminTab;
+    var html = '<div class="flex flex-col gap-3 md:gap-6 py-4 md:py-8 px-3 md:px-6">';
+    if (tab === "pos") html += renderAdminPos();
+    else if (tab === "transactions") html += renderAdminTransactions();
+    else if (tab === "customers") html += renderAdminCustomers();
+    else if (tab === "products" || tab === "categories" || tab === "employees") html += renderAdminManagement(tab);
+    else if (tab === "reports") html += renderAdminReports();
+    else if (tab === "settings") html += renderAdminSettings();
+    else html += renderAdminPos();
+    html += '</div>';
+    setTimeout(function () { updateSidebarActive(); refreshIcons(); }, 0);
+    return html;
+  }
   // ---------- router / render ----------
   function stopTimers() {
     if (state.trackTimer) { clearInterval(state.trackTimer); state.trackTimer = null; }
     if (state.kitchenTimer) { clearInterval(state.kitchenTimer); state.kitchenTimer = null; }
+    if (state.customerTimer) { clearInterval(state.customerTimer); state.customerTimer = null; }
+    if (state.queueTimer) { clearInterval(state.queueTimer); state.queueTimer = null; }
   }
   function render() {
     stopTimers();
     updateHeaderMember(); renderCartBadge();
     var main = $("app");
-    var nav = $("bottom-nav"), header = $("app-header");
+    var nav = $("bottom-nav"), header = $("app-header"), sidebar = $("sidebar");
     var isAdminView = state.view === "admin" || state.view === "kitchen";
-    if (header) header.style.display = isAdminView ? "none" : "";
-    if (nav) nav.style.display = isAdminView ? "none" : "";
+    var isDisplayView = state.view === "customer" || state.view === "queue";
+    if (header) header.style.display = (isAdminView || isDisplayView) ? "none" : "";
+    if (nav) nav.style.display = (isAdminView || isDisplayView) ? "none" : "";
+    if (sidebar) sidebar.classList.toggle("hidden", state.view !== "admin" || !state.staffUser);
+    var fullBleed = isAdminView || isDisplayView;
+    main.classList.toggle("max-w-3xl", !fullBleed);
+    main.classList.toggle("px-5", !fullBleed);
+    main.classList.toggle("pt-32", !fullBleed);
+    main.classList.toggle("pb-44", !fullBleed);
+    main.classList.toggle("pb-32", isAdminView);
+    main.classList.toggle("p-0", isDisplayView);
+    main.classList.toggle("admin-font", fullBleed);
+    if (state.view !== "admin" && state.view !== "kitchen") hideStaffLogin();
+    if (state.view === "admin" && sidebar) {
+      var expanded = sidebar.classList.contains("lg:w-64");
+      main.classList.toggle("lg:ml-64", expanded);
+      main.classList.toggle("lg:ml-24", !expanded);
+    } else { main.classList.remove("lg:ml-24", "lg:ml-64"); }
     document.querySelectorAll("[data-nav]").forEach(function (b) {
       b.classList.toggle("active", b.getAttribute("data-nav") === state.view || (state.view === "online" && b.getAttribute("data-nav") === "online"));
     });
@@ -1114,8 +1875,17 @@
       main.innerHTML = renderKitchen();
       state.kitchenTimer = setInterval(loadKitchen, 15000);
     }
+    else if (state.view === "customer") {
+      main.innerHTML = renderCustomerView();
+      state.customerTimer = setInterval(loadCustomerView, 15000);
+    }
+    else if (state.view === "queue") {
+      main.innerHTML = renderQueueView();
+      state.queueTimer = setInterval(loadQueueView, 15000);
+    }
     else main.innerHTML = renderOnline();
     refreshCartDrawer();
+    if (isAdminView || isDisplayView) refreshIcons();
   }
 
   // ---------- public API ----------
@@ -1144,6 +1914,7 @@
       state.orderType = btn.getAttribute("data-v");
       syncCheckoutSelectors();
       refreshCartDrawer(); // total berubah (Tausil hanya untuk Delivery)
+      renderPosCartPanel();
     },
     setPayment: function (btn) {
       state.payment = btn.getAttribute("data-v");
@@ -1165,8 +1936,34 @@
     },
     staffLogin: staffLogin,
     staffLogout: staffLogout,
-    setAdminTab: function (t) { state.adminTab = t; render(); },
+    setAdminTab: function (t) { state.adminTab = t; closePopovers(); render(); },
     setTxnStatus: setTxnStatus,
+    voidTxn: voidTxn,
+    toggleSidebar: toggleSidebar,
+    setDisplay: setDisplay,
+    toggleDisplayPopover: toggleDisplayPopover,
+    toggleMorePopover: toggleMorePopover,
+    closePopovers: closePopovers,
+    openStaffModal: openStaffModal,
+    closeStaffModal: closeStaffModal,
+    selectEmployee: selectEmployee,
+    backToAccounts: backToAccounts,
+    pinPadDigit: pinPadDigit,
+    pinPadDelete: pinPadDelete,
+    posSearch: posSearch,
+    setPosCategory: setPosCategory,
+    selectPosCustomer: selectPosCustomer,
+    togglePosCustomerPicker: togglePosCustomerPicker,
+    toggleFullscreen: toggleFullscreen,
+    openScanner: openScanner,
+    setTxnFilter: setTxnFilter,
+    loadKitchen: loadKitchen,
+    openMgmtForm: openMgmtForm,
+    closeMgmtForm: closeMgmtForm,
+    saveMgmtForm: saveMgmtForm,
+    deleteMgmtRecord: deleteMgmtRecord,
+    setReportDate: setReportDate,
+    saveSettings: saveSettings,
   };
 
   window.addEventListener("popstate", function () {

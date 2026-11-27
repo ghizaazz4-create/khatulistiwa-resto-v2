@@ -16,6 +16,9 @@
 <link crossorigin href="https://fonts.gstatic.com" rel="preconnect">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<!-- GASPOS v1 (admin/POS): Inter + JetBrains Mono + Lucide. Menu pelanggan tetap Plus Jakarta Sans / Material Symbols. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script id="tailwind-config">
@@ -50,6 +53,39 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
   @keyframes shake-x { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
   .shake { animation: shake-x .45s ease; }
   .co-error-loud { display: flex; align-items: center; gap: 8px; background: #ffdad6; color: #93000a; border-radius: 12px; padding: 10px 12px; font-weight: 700; }
+  /* ---------- Admin/POS GASPOS v1 (Inter, lime #C7D957, cream #F7F0DC) ----------
+     Hanya untuk area admin/display; menu pelanggan tetap memakai token Stitch. */
+  .gaspos { font-family: 'Inter', system-ui, sans-serif; color: #111827; }
+  #app.admin-font { font-family: 'Inter', system-ui, sans-serif; color: #111827; }
+  .bento-card { background-color: #fff; border: 1px solid #E5E7EB; border-radius: 1rem; transition: all 0.3s; }
+  .bento-card:hover { border-color: #14532D; box-shadow: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05); }
+  .login-mesh-bg { background-color: #F7F0DC; background-image: radial-gradient(at 0% 0%, rgba(199,217,87,.6) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(199,217,87,.4) 0, transparent 40%), radial-gradient(at 100% 0%, rgba(255,255,255,.9) 0, transparent 40%); }
+  .login-glass { background: rgba(255,255,255,.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,.8); }
+  .pin-dot { width: 1rem; height: 1rem; border-radius: 9999px; border: 2px solid #C7D957; transition: all .2s; }
+  .pin-dot.on { background-color: #C7D957; }
+  /* Sidebar GASPOS: bottom row di mobile, kiri collapsed di desktop */
+  #sidebar.collapsed .sidebar-expand-only { display: none; }
+  #sidebar .nav-link { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #4B5563; padding: 6px 0; border-radius: 0.75rem; transition: all .2s; }
+  #sidebar .nav-link:hover { background: #F3F4F6; color: #111827; }
+  #sidebar .nav-link.active { color: #111827; background: #F7F0DC; }
+  @media (min-width: 1024px) {
+    #sidebar .nav-link { flex-direction: row; justify-content: center; padding: 10px 0; }
+    #sidebar .nav-link .nav-label { display: none; }
+    #sidebar:not(.collapsed) .nav-link { justify-content: flex-start; padding-left: 16px; gap: 12px; }
+    #sidebar:not(.collapsed) .nav-link .nav-label { display: inline; }
+  }
+  #display-popover, #more-popover { position: fixed; background: #fff; border-radius: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,.1), 0 10px 10px -5px rgba(0,0,0,.04); z-index: 60; display: none; }
+  #display-popover.open, #more-popover.open { display: block; }
+  @media (max-width: 1023px) {
+    #display-popover, #more-popover { bottom: 88px; left: 50%; transform: translateX(-50%); width: min(92vw, 320px); }
+    #display-popover::after, #more-popover::after { content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 12px; height: 12px; background: #fff; }
+  }
+  #sidebar .popover-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border-radius: 0.75rem; font-size: 14px; font-weight: 600; color: #374151; text-align: left; transition: background .15s; }
+  #sidebar .popover-item:hover { background: #F3F4F6; }
+  #sidebar .popover-item.active { background: #F7F0DC; color: #111827; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 70; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-backdrop.modal-open { animation: modal-in .2s ease-out; }
+  @keyframes modal-in { from { opacity: 0; } to { opacity: 1; } }
 </style>
 </head>
 <body class="bg-surface text-on-surface flex flex-col min-h-screen">
@@ -85,6 +121,106 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
     </div>
   </div>
 </header>
+
+<!-- ============ SIDEBAR GASPOS v1 (admin only, shown by JS) ============ -->
+<aside id="sidebar" class="hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 lg:top-0 lg:left-0 lg:w-24 lg:h-screen lg:border-r lg:border-t-0 z-40 transition-all duration-300 collapsed gaspos">
+  <div class="flex flex-col h-full relative">
+    <!-- Logo row (desktop only) -->
+    <div class="hidden lg:flex flex-col items-center justify-center py-4 border-b border-gray-100 shrink-0">
+      <div class="w-11 h-11 bg-[#C7D957] rounded-2xl flex items-center justify-center text-black font-black text-xl shadow-sm">K</div>
+      <span id="brand-name" class="sidebar-expand-only text-lg font-black uppercase tracking-tighter mt-2">GASPOS</span>
+    </div>
+    <!-- Clock (desktop only) -->
+    <div id="sidebar-clock-wrapper" class="hidden lg:flex items-center justify-center py-2 px-2">
+      <div id="current-date-clock" class="text-[9px] text-gray-400 font-bold uppercase tracking-widest text-center"><span id="clock-date-part"></span> &bull; <span id="clock-time-part"></span></div>
+    </div>
+    <!-- Toggle (desktop only) -->
+    <button id="sidebar-toggle" onclick="App.toggleSidebar()" class="hidden lg:flex absolute -right-3 top-16 z-50 w-6 h-6 bg-white border border-gray-200 rounded-full items-center justify-center shadow-sm text-gray-500 hover:text-black" title="Perluas / Ciutkan">
+      <i id="toggle-icon" data-lucide="chevron-right" class="w-4 h-4 transition-transform" style="transform: rotate(180deg)"></i>
+    </button>
+    <!-- Nav -->
+    <nav id="main-nav" class="flex flex-row lg:flex-col lg:gap-2 lg:py-4 lg:px-2 justify-between lg:justify-start items-center flex-1">
+      <button data-nav="customers" onclick="App.setAdminTab('customers')" class="nav-link order-1 flex-1 lg:flex-none lg:w-full">
+        <i data-lucide="users" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Customers</span>
+      </button>
+      <button data-nav="transactions" onclick="App.setAdminTab('transactions')" class="nav-link order-2 flex-1 lg:flex-none lg:w-full">
+        <i data-lucide="history" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">History</span>
+      </button>
+      <button id="display-menu-btn" onclick="App.toggleDisplayPopover()" class="nav-link order-3 flex-1 lg:flex-none lg:w-full max-lg:bg-gradient-to-tr max-lg:from-[#C7D957] max-lg:to-orange-200 max-lg:scale-110 max-lg:w-20 max-lg:h-14 max-lg:rounded-2xl max-lg:shadow-lg max-lg:shadow-[#C7D957]/40 max-lg:text-black">
+        <i data-lucide="monitor" class="w-6 h-6"></i>
+        <span class="nav-label text-[10px] font-black max-lg:text-black lg:hidden">POS</span>
+        <span class="sidebar-expand-only hidden lg:inline text-xs font-bold">Display</span>
+        <i data-lucide="chevron-right" class="w-4 h-4 sidebar-expand-only hidden"></i>
+      </button>
+      <button data-nav="settings" onclick="App.setAdminTab('settings')" class="nav-link lg:hidden order-4 flex-1">
+        <i data-lucide="settings" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Settings</span>
+      </button>
+      <button id="more-menu-btn" onclick="App.toggleMorePopover()" class="nav-link lg:hidden order-5 flex-1">
+        <i data-lucide="more-horizontal" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">More</span>
+      </button>
+      <!-- Desktop-only nav items -->
+      <button data-nav="products" onclick="App.setAdminTab('products')" class="nav-link hidden lg:flex lg:w-full">
+        <i data-lucide="package" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Products</span>
+      </button>
+      <button data-nav="categories" onclick="App.setAdminTab('categories')" class="nav-link hidden lg:flex lg:w-full">
+        <i data-lucide="layers" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Categories</span>
+      </button>
+      <button data-nav="employees" onclick="App.setAdminTab('employees')" class="nav-link hidden lg:flex lg:w-full">
+        <i data-lucide="shield-check" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Staff</span>
+      </button>
+      <button data-nav="reports" onclick="App.setAdminTab('reports')" class="nav-link hidden lg:flex lg:w-full">
+        <i data-lucide="bar-chart-3" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Reports</span>
+      </button>
+      <a id="sidebar-online-order-btn" href="./?view=online" target="_blank" rel="noopener" class="nav-link hidden lg:flex lg:w-full">
+        <i data-lucide="shopping-bag" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Pesan Online</span>
+      </a>
+    </nav>
+    <!-- Footer (desktop only) -->
+    <div class="hidden lg:flex flex-col gap-2 p-2 border-t border-gray-100">
+      <button data-nav="settings" onclick="App.setAdminTab('settings')" class="nav-link w-full">
+        <i data-lucide="settings" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Settings</span>
+      </button>
+      <button onclick="App.staffLogout()" class="nav-link w-full text-red-600">
+        <i data-lucide="log-out" class="w-6 h-6"></i><span class="nav-label text-[10px] font-bold">Logout</span>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<!-- ============ DISPLAY / MORE POPOVERS (GASPOS) ============ -->
+<div id="display-popover" class="gaspos">
+  <div class="p-2 w-64">
+    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-4 pt-3 pb-1">Views</p>
+    <button class="popover-item" onclick="App.setDisplay('pos')"><i data-lucide="layout-template" class="w-5 h-5 text-gray-400"></i>Register (POS)</button>
+    <button class="popover-item" onclick="App.setDisplay('kitchen')"><i data-lucide="chef-hat" class="w-5 h-5 text-gray-400"></i>Kitchen Display</button>
+    <button class="popover-item" onclick="App.setDisplay('customer')"><i data-lucide="tv" class="w-5 h-5 text-gray-400"></i>Customer View</button>
+    <button class="popover-item" onclick="App.setDisplay('queue')"><i data-lucide="list-ordered" class="w-5 h-5 text-gray-400"></i>Queue Status</button>
+  </div>
+</div>
+<div id="more-popover" class="gaspos">
+  <div class="p-2 w-64">
+    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-4 pt-3 pb-1">More</p>
+    <button class="popover-item" onclick="App.setAdminTab('products')"><i data-lucide="package" class="w-5 h-5 text-gray-400"></i>Products</button>
+    <button class="popover-item" onclick="App.setAdminTab('categories')"><i data-lucide="layers" class="w-5 h-5 text-gray-400"></i>Categories</button>
+    <button class="popover-item" onclick="App.setAdminTab('employees')"><i data-lucide="shield-check" class="w-5 h-5 text-gray-400"></i>Staff</button>
+    <button class="popover-item" onclick="App.setAdminTab('reports')"><i data-lucide="bar-chart-3" class="w-5 h-5 text-gray-400"></i>Reports</button>
+    <a class="popover-item" href="./?view=online" target="_blank" rel="noopener"><i data-lucide="shopping-bag" class="w-5 h-5 text-gray-400"></i>Pesan Online</a>
+    <button class="popover-item text-red-600" onclick="App.staffLogout()"><i data-lucide="log-out" class="w-5 h-5"></i>Logout</button>
+  </div>
+</div>
+
+<!-- ============ CRUD MODAL (admin management) ============ -->
+<div id="crud-modal" class="hidden modal-backdrop gaspos" onclick="if(event.target===this)App.closeMgmtForm()">
+  <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-4">
+      <h3 id="crud-title" class="text-xl font-black">Add New</h3>
+      <button onclick="App.closeMgmtForm()" class="p-2 hover:bg-gray-100 rounded-xl"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div id="crud-fields" class="space-y-4"></div>
+    <div id="crud-error" class="hidden text-sm font-bold text-red-600 mt-3"></div>
+    <button onclick="App.saveMgmtForm()" class="w-full mt-5 py-3.5 rounded-2xl bg-black text-white font-bold hover:opacity-90">Simpan</button>
+  </div>
+</div>
 
 <main id="app" class="max-w-3xl mx-auto w-full px-5 pt-32 pb-44"></main>
 
@@ -233,17 +369,58 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
   </div>
 </nav>
 
-<!-- ============ ADMIN LOGIN (shown only for admin/kitchen views) ============ -->
-<div id="staff-login" class="hidden fixed inset-0 z-50 bg-surface flex items-center justify-center p-4">
-  <div class="bg-surface-container-lowest rounded-[24px] p-6 w-full max-w-sm shadow-2xl text-center">
-    <div class="w-16 h-16 mx-auto rounded-2xl bg-primary-container text-on-primary flex items-center justify-center font-display-hero-mobile text-display-hero-mobile">K</div>
-    <h2 class="font-headline-md text-headline-md text-on-surface mt-3">Khatulistiwa Resto — Staff</h2>
-    <p class="font-body-sm text-body-sm text-on-surface-variant mb-4">Masuk dengan akun staf (PIN) untuk POS / Kitchen / Admin.</p>
-    <select id="staff-employee" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface outline-none mb-2"></select>
-    <input id="staff-pin" type="password" inputmode="numeric" class="w-full p-3 rounded-xl bg-surface-container-low font-headline-lg text-headline-lg text-on-surface placeholder:text-outline outline-none text-center tracking-widest" placeholder="••••••">
-    <div id="staff-error" class="hidden font-label-md text-label-md text-error mt-2"></div>
-    <button onclick="App.staffLogin()" class="w-full mt-3 h-12 rounded-full bg-primary-container text-on-primary font-label-lg text-label-lg">Masuk</button>
-    <button onclick="App.go('online')" class="w-full mt-2 py-2 font-body-sm text-body-sm text-on-surface-variant flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[16px]">arrow_back</span>Kembali ke Pesan Online</button>
+<!-- ============ ADMIN LOGIN GASPOS v1 (shown only for admin/kitchen views) ============ -->
+<div id="staff-login" class="hidden fixed inset-0 z-[200] login-mesh-bg gaspos">
+  <div class="w-full h-full flex items-center justify-center p-4 overflow-y-auto">
+    <!-- Account selector -->
+    <div id="account-selector" class="login-glass w-full max-w-md rounded-[2.5rem] p-8 md:p-12 shadow-2xl text-center">
+      <div class="w-28 h-20 mx-auto bg-white border border-gray-100 rounded-2xl flex items-center justify-center shadow-sm">
+        <i data-lucide="layout-grid" class="w-10 h-10 text-black"></i>
+      </div>
+      <h1 class="text-4xl font-black tracking-tighter mt-6">GASPOS</h1>
+      <p class="text-gray-500 mt-2 text-sm">Please sign in to access the POS</p>
+      <button id="open-staff-modal" onclick="App.openStaffModal()" class="w-full mt-8 py-5 bg-black text-white rounded-[1.5rem] font-bold uppercase tracking-widest text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-all">
+        <i data-lucide="users" class="w-5 h-5"></i> Select Account
+      </button>
+      <button onclick="App.go('online')" class="mt-4 text-sm text-gray-500 hover:text-black font-medium">← Kembali ke Pesan Online</button>
+    </div>
+    <!-- PIN screen -->
+    <div id="pin-screen" class="hidden login-glass w-full max-w-md rounded-[2.5rem] p-8 md:p-12 shadow-2xl text-center">
+      <button onclick="App.backToAccounts()" class="p-2 hover:bg-gray-100 rounded-xl mb-4 flex" title="Kembali"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+      <div id="selected-employee-avatar" class="w-16 h-16 mx-auto bg-[#C7D957] rounded-full flex items-center justify-center font-bold text-xl text-black overflow-hidden">?</div>
+      <h2 id="selected-employee-name" class="text-xl font-bold mt-3"></h2>
+      <p class="text-gray-500 text-sm mt-1">Enter 6-digit PIN</p>
+      <div class="flex justify-center gap-3 my-8">
+        <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+        <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <div id="pin-pad-grid" class="grid grid-cols-3 gap-3 max-w-[280px] mx-auto">
+        <button onclick="App.pinPadDigit(1)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">1</button>
+        <button onclick="App.pinPadDigit(2)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">2</button>
+        <button onclick="App.pinPadDigit(3)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">3</button>
+        <button onclick="App.pinPadDigit(4)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">4</button>
+        <button onclick="App.pinPadDigit(5)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">5</button>
+        <button onclick="App.pinPadDigit(6)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">6</button>
+        <button onclick="App.pinPadDigit(7)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">7</button>
+        <button onclick="App.pinPadDigit(8)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">8</button>
+        <button onclick="App.pinPadDigit(9)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">9</button>
+        <span></span>
+        <button onclick="App.pinPadDigit(0)" class="h-16 rounded-2xl bg-white border border-gray-100 text-xl font-bold hover:bg-[#F7F0DC] transition-colors">0</button>
+        <button onclick="App.pinPadDelete()" class="h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center hover:bg-red-50 text-red-600 transition-colors" title="Hapus"><i data-lucide="delete" class="w-6 h-6"></i></button>
+      </div>
+      <div id="staff-error" class="hidden font-bold text-sm text-red-600 mt-4"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ EMPLOYEE SELECTION MODAL (GASPOS login) ============ -->
+<div id="staff-selection-modal" class="hidden modal-backdrop gaspos" onclick="if(event.target===this)App.closeStaffModal()">
+  <div class="bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-2xl max-h-[85vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-xl font-black">Pilih Akun Staf</h3>
+      <button onclick="App.closeStaffModal()" class="p-2 hover:bg-gray-100 rounded-xl"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div id="employee-list" class="grid gap-2"></div>
   </div>
 </div>
 
