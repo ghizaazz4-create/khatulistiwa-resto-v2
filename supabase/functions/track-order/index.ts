@@ -1,9 +1,12 @@
 // POST /functions/v1/track-order
 // Public (anon key) — order tracking for the ?view=order&id=... link.
 // Returns ONE transaction by its id (YYMMDD-XXX): status, items, total,
-// order type, payment method, timestamp and the customer name only.
-// The order id is the lookup key, exactly like Sekali Klik's invoice
-// lookup — no login needed, and no other customer's order is returned.
+// order type, payment method, timestamp, the customer name, and the
+// customer's saved address + maps URL (address, latitude, longitude,
+// maps_url) so the tracking page can show the delivery address for guests
+// too — not only for a logged-in member. The order id is the lookup key,
+// exactly like Sekali Klik's invoice lookup — no login needed, and no
+// other customer's order is returned.
 // The tracking view re-fetches this every 15 seconds, so a status change
 // made in Kitchen / POS / Transactions shows up on the link live.
 // Deploy: supabase functions deploy track-order
@@ -29,9 +32,17 @@ serve(async (req) => {
     if (error) return json({ ok: false, message: error.message }, 500);
     if (!t) return json({ ok: false, message: "Order not found. Check the order ID." }, 404);
     let customerName = "";
+    let customerAddress = "";
+    let customerLatitude = null;
+    let customerLongitude = null;
+    let customerMapsUrl = "";
     if (t.customer_id) {
-      const { data: c } = await sb.from("customers").select("name").eq("id", t.customer_id).maybeSingle();
+      const { data: c } = await sb.from("customers").select("name, address, latitude, longitude, maps_url").eq("id", t.customer_id).maybeSingle();
       customerName = String(c?.name ?? "");
+      customerAddress = String(c?.address ?? "");
+      customerLatitude = c?.latitude ?? null;
+      customerLongitude = c?.longitude ?? null;
+      customerMapsUrl = String(c?.maps_url ?? "");
     }
     return json({
       ok: true,
@@ -47,6 +58,10 @@ serve(async (req) => {
         notes: t.notes ?? "",
         completed_at: t.completed_at,
         customerName,
+        address: customerAddress,
+        latitude: customerLatitude,
+        longitude: customerLongitude,
+        mapsUrl: customerMapsUrl,
       },
     });
   } catch (e) {

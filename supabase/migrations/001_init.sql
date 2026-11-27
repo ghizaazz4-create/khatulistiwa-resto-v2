@@ -297,20 +297,34 @@ create or replace view public.transaction_items as
 -- daily_reports: the Reports sheet columns, computed, not stored.
 -- (top_selling_item is the best-selling product name for that day.)
 create or replace view public.daily_reports as
-  select to_char(t.timestamp, 'YYYY-MM-DD') as id,
-         date_trunc('day', t.timestamp)::date as date,
-         coalesce(sum(t.total_amount), 0) as total_revenue,
-         count(*)::int as total_orders,
-         coalesce(avg(t.total_amount), 0) as avg_order_value,
-         (select ti.product_name
-            from public.transaction_items ti
-           where date_trunc('day', ti.timestamp) = date_trunc('day', t.timestamp)
-           group by ti.product_name
-           order by sum(ti.qty) desc
-           limit 1) as top_selling_item
-    from public.transactions t
-   where t.status <> 'Void'
-   group by date_trunc('day', t.timestamp);
+  with daily as (
+    select date_trunc('day', timestamp) as day,
+           coalesce(sum(total_amount), 0) as total_revenue,
+           count(*)::int as total_orders,
+           coalesce(avg(total_amount), 0) as avg_order_value
+      from public.transactions
+     where status <> 'Void'
+     group by date_trunc('day', timestamp)
+  ),
+  top_items as (
+    select date_trunc('day', timestamp) as day, product_name,
+           sum(qty) as total_qty
+      from public.transaction_items
+     group by date_trunc('day', timestamp), product_name
+  ),
+  top_per_day as (
+    select distinct on (day) day, product_name
+      from top_items
+     order by day, total_qty desc
+  )
+  select to_char(d.day, 'YYYY-MM-DD') as id,
+         d.day::date as date,
+         d.total_revenue,
+         d.total_orders,
+         d.avg_order_value,
+         t.product_name as top_selling_item
+    from daily d
+    left join top_per_day t on t.day = d.day;
 
 -- ---------------------------------------------------------------------------
 -- updated_at maintenance

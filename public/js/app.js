@@ -584,10 +584,13 @@
     }
     if (state.trackError) html += '<p class="font-label-md text-label-md text-error">' + esc(state.trackError) + '</p>';
     if (t) {
-      // track-order TIDAK mengembalikan alamat/mapsUrl — pakai alamat member
-      // yang login (pemesan) bila ada; kalau kosong tampilkan "—"/kosong.
-      var addr = (state.member && state.member.address) || "";
-      var mapsUrl = (state.member && state.member.maps_url) || "";
+      // track-order mengembalikan alamat/mapsUrl pelanggan dari order itu
+      // sendiri, jadi tamu pun melihat alamat pengiriman di link lacak.
+      // Fallback: alamat member yang sedang login; terakhir, rakit Maps URL
+      // dari latitude/longitude bila ada.
+      var addr = t.address || (state.member && state.member.address) || "";
+      var mapsUrl = t.mapsUrl || (state.member && state.member.maps_url) || "";
+      if (!mapsUrl && t.latitude && t.longitude) mapsUrl = "https://maps.google.com/?q=" + t.latitude + "," + t.longitude;
       html += '<div class="flex flex-col w-full pb-8">';
       html += trackHeaderBannerHtml(t, false);
       html += '<div class="flex flex-col gap-6">';
