@@ -1370,12 +1370,17 @@
     return html;
   }
   async function loadKitchen() {
-    var res = await window.supabaseApi.getTransactions();
-    var rows = (res && res.ok) ? (res.data || []) : [];
     var lanes = { "Pending": $("kanban-Pending"), "Dibuat": $("kanban-Dibuat"), "Diantar": $("kanban-Diantar"), "Selesai": $("kanban-Selesai") };
     if (!lanes["Pending"]) return;
     var today = new Date().toISOString().slice(0, 10);
-    rows = rows.filter(function (t) { return String(t.timestamp || "").slice(0, 10) === today && t.status !== "Void"; });
+    try {
+      var res = await window.supabaseApi.getTransactions();
+      if (!res || !res.ok) throw new Error((res && res.message) || "gagal memuat pesanan");
+      var rows = res.data || [];
+      // Sinkron dengan Queue: pesanan aktif (Pending/Dibuat/Diantar) tampil
+      // apa pun tanggalnya — jangan hilang cuma karena lewat tengah malam.
+      // Yang Selesai hanya yang hari ini.
+      rows = rows.filter(function (t) { return t.status !== "Void" && (t.status !== "Selesai" || String(t.timestamp || "").slice(0, 10) === today); });
     Object.keys(lanes).forEach(function (k) { if (lanes[k]) lanes[k].innerHTML = ""; });
     rows.forEach(function (t) {
       var lane = lanes[t.status] || lanes["Pending"];
@@ -1405,6 +1410,10 @@
     setCount("count-diantar", rows.filter(function (o) { return o.status === "Diantar"; }).length);
     setCount("count-selesai", rows.filter(function (o) { return o.status === "Selesai"; }).length);
     refreshIcons();
+    } catch (e) {
+      // Gagal memuat harus terlihat — bukan lane kosong yang menyesatkan.
+      Object.keys(lanes).forEach(function (k) { if (lanes[k]) lanes[k].innerHTML = '<p class="text-sm text-red-600 font-bold p-3">Gagal memuat dapur. Tekan Refresh.</p>'; });
+    }
   }
 
   // ---------- Transactions / History (v1) ----------
@@ -1764,7 +1773,8 @@
       var list = await window.supabaseApi.getTransactions();
       var rows = (list && list.ok) ? (list.data || []) : [];
       var today = new Date().toISOString().slice(0, 10);
-      rows = rows.filter(function (t) { return String(t.timestamp || "").slice(0, 10) === today && t.status !== "Void"; });
+      // Sinkron dengan Kitchen: pesanan aktif tampil apa pun tanggalnya.
+      rows = rows.filter(function (t) { return t.status !== "Void" && (t.status !== "Selesai" || String(t.timestamp || "").slice(0, 10) === today); });
       rows.sort(function (a, b) { return String(a.timestamp || "").localeCompare(String(b.timestamp || "")); });
       state.queueView = {
         preparing: rows.filter(function (t) { return t.status === "Pending" || t.status === "Dibuat"; }),
@@ -1886,6 +1896,9 @@
     else main.innerHTML = renderOnline();
     refreshCartDrawer();
     if (isAdminView || isDisplayView) refreshIcons();
+    // Jam sidebar / queue baru dibuat ulang tiap render — isi langsung,
+    // jangan tunggu interval 10 detik (kalau tidak, queue tampil "--:--").
+    updateClock();
   }
 
   // ---------- public API ----------

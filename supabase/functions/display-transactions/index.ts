@@ -1,13 +1,16 @@
 // POST /functions/v1/display-transactions
-// Public (anon key) — today's transactions for the Kitchen / Customer /
+// Public (anon key) — transactions for the Kitchen / Customer /
 // Queue display views, replacing the getTransactions() calls in
 // fetchAndRenderKitchen() and the queue/customer views. The original
 // exposed the FULL transaction rows (including customer_id and
 // employee_id) to anyone with the link; this function returns only the
 // fields a display screen actually renders: id, timestamp, items,
 // total_amount, paymentMethod, orderType, tableNumber, status.
-// No customer or employee data is returned. Only today's orders are
-// returned, like the original kitchen view (which filtered by today).
+// No customer or employee data is returned.
+// SINKRON dengan Kitchen: pesanan aktif (Pending/Dibuat/Diantar) dikirim
+// apa pun tanggalnya — jangan hilang dari dapur/antrean cuma karena lewat
+// tengah malam. Yang Selesai hanya yang hari ini (kemarin sudah keluar
+// dari board). Void tidak pernah dikirim.
 // Deploy: supabase functions deploy display-transactions
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { corsHeaders, handleOptions, json } from "../_shared/cors.ts";
@@ -24,12 +27,15 @@ serve(async (req) => {
       .from("transactions")
       .select("id, timestamp, items_json, total_amount, payment_method, order_type, table_number, status")
       .neq("status", "Void")
-      .gte("timestamp", `${today}T00:00:00.000Z`)
-      .lt("timestamp", `${today}T23:59:59.999Z`)
-      .order("timestamp", { ascending: true });
+      .order("timestamp", { ascending: false })
+      .limit(200);
     if (error) return json({ ok: false, message: error.message }, 500);
+    // Aktif (belum Selesai) apa pun tanggalnya + Selesai hari ini saja.
+    const kept = (data ?? []).filter((t) =>
+      t.status !== "Selesai" || String(t.timestamp ?? "").slice(0, 10) === today,
+    ).sort((a, b) => String(a.timestamp ?? "").localeCompare(String(b.timestamp ?? "")));
     // Shape matches getTransactions(): items is a JSON STRING there.
-    const rows = (data ?? []).map((t) => ({
+    const rows = kept.map((t) => ({
       id: t.id,
       timestamp: t.timestamp,
       items: typeof t.items_json === "string" ? t.items_json : JSON.stringify(t.items_json ?? []),

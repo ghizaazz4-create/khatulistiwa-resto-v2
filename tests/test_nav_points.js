@@ -230,6 +230,30 @@ function check(name, ok) { console.log((ok ? "PASS " : "FAIL ") + name); ok ? pa
   check("logout -> admin kembali ke layar login (Masuk sebagai staf)",
     els["app"].innerHTML.includes("Masuk sebagai staf") && els["staff-login"].classList.contains("hidden") === false);
 
+  // ---------- Perbaikan pasca-verifikasi browser (27 Nov 2026) ----------
+  // (a) Modal pilih staf harus di ATAS layar login (z 200) — .modal-backdrop
+  //     sempat z-index 70 sehingga modal tidak terlihat & tidak bisa diklik.
+  check("modal pilih staf di atas layar login (modal-backdrop z-index > 200)",
+    /\.modal-backdrop\s*\{[^}]*z-index:\s*2\d\d/.test(idx));
+  // (b) Jam queue/sidebar diisi langsung tiap render (bukan hanya interval
+  //     10 detik) — kalau tidak, queue sempat tampil "--:--".
+  check("render() memanggil updateClock() langsung",
+    /refreshIcons\(\);\s*\n\s*\/\/[^\n]*\n\s*updateClock\(\);/.test(appSrc) || appSrc.includes("updateClock();\n  }\n\n  // ---------- public API"));
+  // (c) Kitchen + Queue sinkron: pesanan aktif tampil apa pun tanggalnya.
+  check("Kitchen: filter pesanan aktif tanpa batas tanggal (Selesai hari ini saja)",
+    /loadKitchen[\s\S]*?status !== "Selesai" \|\| String\(t\.timestamp/.test(appSrc));
+  check("Queue: filter pesanan aktif tanpa batas tanggal (Selesai hari ini saja)",
+    /loadQueueView[\s\S]*?status !== "Selesai" \|\| String\(t\.timestamp/.test(appSrc));
+  check("loadKitchen gagal memuat tampil pesan error (bukan lane kosong)",
+    appSrc.includes("Gagal memuat dapur"));
+  check("display-transactions: aktif apa pun tanggal + Selesai hari ini",
+    fs.readFileSync("/home/hatch/workspace/khatuliswa-resto-cloudflare/supabase/functions/display-transactions/index.ts", "utf8").includes('t.status !== "Selesai"') &&
+    !fs.readFileSync("/home/hatch/workspace/khatuliswa-resto-cloudflare/supabase/functions/display-transactions/index.ts", "utf8").includes('.gte("timestamp"'));
+  // (d) Anti-kedip: chrome menu pelanggan disembunyikan sebelum app.js boot
+  //     untuk view admin/kitchen/customer/queue.
+  check("anti-kedip: script awal sembunyikan header/nav/cart untuk view admin/display",
+    idx.includes('["admin", "kitchen", "customer", "queue"]') && idx.includes('["app-header", "bottom-nav", "floating-cart"]'));
+
   console.log("\n" + pass + " passed, " + fail + " failed");
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
