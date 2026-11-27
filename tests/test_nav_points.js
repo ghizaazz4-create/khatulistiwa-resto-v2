@@ -112,6 +112,43 @@ function check(name, ok) { console.log((ok ? "PASS " : "FAIL ") + name); ok ? pa
   check("footer Accept tampil saat keranjang berisi", !el("cart-footer").classList.contains("hidden"));
   check("ringkasan checkout terisi", el("co-summary").innerHTML.includes("Total Pembayaran"));
 
+  // Tausil 5 LE fixed — hanya untuk Delivery, bukan 5% untuk semua
+  const totalsTakeAway = el("cart-totals").innerHTML;
+  check("Take Away tanpa baris Tausil (total 90 + pajak 9 = 99 LE)",
+    !totalsTakeAway.includes("Tausil") && totalsTakeAway.includes("99 LE"));
+  sandbox.App.setOrderType({ getAttribute: (n) => n === "data-v" ? "Delivery" : null });
+  await new Promise(r => setTimeout(r, 20));
+  const totalsDelivery = el("cart-totals").innerHTML;
+  check("Delivery kena Tausil 5 LE fixed (total 90 + 5 + 9 = 104 LE)",
+    totalsDelivery.includes("Tausil") && totalsDelivery.includes("5 LE") && totalsDelivery.includes("104 LE"));
+  check("ringkasan checkout Delivery juga pakai Tausil",
+    el("co-summary").innerHTML.includes("Tausil") && el("co-summary").innerHTML.includes("Termasuk tausil"));
+  check("tidak ada lagi label Service 5% / Layanan (%) di app.js/index.html",
+    !appSrc.includes("Service 5%") && !appSrc.includes("Layanan (") && !idx.includes("Service 5%"));
+
+  // Validasi checkout: tombol goyang + notifikasi menonjol + scroll ke kolom
+  if (els["co-name"]) els["co-name"].value = "";
+  if (els["co-phone"]) els["co-phone"].value = "";
+  if (els["co-address"]) els["co-address"].value = "";
+  await sandbox.App.submitOrder();
+  check("validasi nama kosong: error menonjol + tombol Accept bergoyang",
+    !el("co-error").classList.contains("hidden") && el("co-error").classList.contains("co-error-loud") &&
+    el("co-error").innerHTML.includes("Isi nama dulu") && el("co-accept").classList.contains("shake"));
+  if (els["co-name"]) els["co-name"].value = "Tes";
+  if (els["co-phone"]) els["co-phone"].value = "01515041807";
+  await sandbox.App.submitOrder();
+  check("validasi alamat Tausil kosong: error menyebut alamat Tausil",
+    el("co-error").innerHTML.includes("Isi alamat Tausil dulu"));
+
+  // ID pesanan acak (cek sumber — tes DB-nya lewat MCP, bukan stub)
+  const sql001 = fs.readFileSync("/home/hatch/workspace/khatuliswa-resto-cloudflare/supabase/migrations/001_init.sql", "utf8");
+  const sql005 = fs.readFileSync("/home/hatch/workspace/khatuliswa-resto-cloudflare/supabase/migrations/005_random_transaction_id.sql", "utf8");
+  check("ID acak: alfabet tanpa 0/O/1/I/L di 001 + 005",
+    sql001.includes("ABCDEFGHJKMNPQRSTUVWXYZ23456789") && sql005.includes("ABCDEFGHJKMNPQRSTUVWXYZ23456789") &&
+    !/lpad\(n::text, 3/.test(sql001));
+  check("placeholder lacak YYMMDD-XXXX + contoh 261127-K7Q2 (bukan -001)",
+    idx.includes("YYMMDD-XXXX") && idx.includes("261127-K7Q2") && !idx.includes("261127-001") && !appSrc.includes("YYMMDD-XXX\""));
+
   console.log("\n" + pass + " passed, " + fail + " failed");
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

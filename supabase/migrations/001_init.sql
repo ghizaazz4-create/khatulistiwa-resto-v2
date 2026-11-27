@@ -25,22 +25,34 @@ returns text language sql immutable as $$
   select regexp_replace(coalesce(p, ''), '\D', '', 'g');
 $$;
 
--- Daily transaction id, YYMMDD-XXX, exactly like submitOrder() in Kode.js.
--- The advisory lock serialises id generation inside a transaction so two
--- simultaneous online orders cannot receive the same id (the original read
--- the last row and incremented it with no lock, so it could collide).
+-- Daily transaction id, YYMMDD-XXXX, dengan suffix ACAK (bukan nomor urut)
+-- supaya id pesanan tidak bisa ditebak orang dari tanggal + urutan.
+-- Alfabet tanpa karakter yang membingungkan (tanpa 0/O, 1/I, L):
+-- 32 karakter -> 32^4 kombinasi per hari. Advisory lock tetap dipakai
+-- dan id dicek ke tabel transactions (regenerasi bila sudah ada).
 create or replace function public.next_transaction_id()
 returns text language plpgsql as $$
 declare
   prefix text := to_char(now(), 'YYMMDD');
-  n int;
+  alphabet text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  suffix text;
+  candidate text;
+  tries int := 0;
 begin
   perform pg_advisory_xact_lock(727271);
-  select coalesce(max((regexp_match(id, '^' || prefix || '-(\d+)$'))[1]::int), 0) + 1
-    into n
-    from public.transactions
-   where id like prefix || '-%';
-  return prefix || '-' || lpad(n::text, 3, '0');
+  loop
+    suffix := '';
+    for i in 1..4 loop
+      suffix := suffix || substr(alphabet, floor(random() * length(alphabet))::int + 1, 1);
+    end loop;
+    candidate := prefix || '-' || suffix;
+    exit when not exists (select 1 from public.transactions where id = candidate);
+    tries := tries + 1;
+    if tries > 50 then
+      raise exception 'could not generate a unique transaction id';
+    end if;
+  end loop;
+  return candidate;
 end;
 $$;
 
@@ -432,6 +444,10 @@ insert into public.settings (key, value) values
   ('address', 'New Banana Street, Jakarta'),
   ('tax_rate', '10'),
   ('service_charge', '5'),
+  -- Biaya Tausil TETAP 5 LE, hanya untuk Delivery (lihat cartTotals di
+  -- public/js/app.js). service_charge (5%) di atas sudah tidak dipakai
+  -- lagi untuk biaya — dipertahankan hanya sebagai arsip.
+  ('tausil_fee', '5'),
   ('enable_dine_in', 'true'),
   ('loyalty_rate', '1000'),
   ('void_pin', '123456'),

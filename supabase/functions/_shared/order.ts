@@ -133,7 +133,7 @@ export async function createOrder(
     }
   }
 
-  // 2. Transaction id (YYMMDD-XXX, via the advisory-locked SQL function).
+  // 2. Transaction id (YYMMDD-XXXX, random suffix, via the advisory-locked SQL function).
   const { data: txnId, error: idErr } = await sb.rpc("next_transaction_id");
   if (idErr || !txnId) {
     return { ok: false, message: idErr?.message ?? "Could not generate transaction id." };

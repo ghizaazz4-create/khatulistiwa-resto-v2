@@ -46,6 +46,10 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
   /* Timeline: tahap yang sedang berjalan */
   .step-now { animation: pulse-ring 1.5s infinite; }
   @keyframes pulse-ring { 0%,100% { box-shadow: 0 0 0 0 rgba(198,235,216,.7); } 50% { box-shadow: 0 0 0 8px rgba(198,235,216,0); } }
+  /* Validasi checkout: tombol Accept bergoyang + notifikasi menonjol */
+  @keyframes shake-x { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+  .shake { animation: shake-x .45s ease; }
+  .co-error-loud { display: flex; align-items: center; gap: 8px; background: #ffdad6; color: #93000a; border-radius: 12px; padding: 10px 12px; font-weight: 700; }
 </style>
 </head>
 <body class="bg-surface text-on-surface flex flex-col min-h-screen">
@@ -105,8 +109,8 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
 <div id="track-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-24" onclick="if(event.target===this)App.toggleTrack()">
   <div class="bg-surface-container-lowest rounded-[24px] p-5 w-full max-w-sm shadow-2xl">
     <h3 class="font-headline-md text-headline-md text-on-surface">Lacak Pesanan</h3>
-    <p class="font-body-sm text-body-sm text-on-surface-variant mb-3">Masukkan nomor order, contoh: <span class="font-mono font-bold">261127-001</span></p>
-    <input id="track-input" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container font-mono uppercase" placeholder="YYMMDD-XXX">
+    <p class="font-body-sm text-body-sm text-on-surface-variant mb-3">Masukkan nomor order, contoh: <span class="font-mono font-bold">261127-K7Q2</span></p>
+    <input id="track-input" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container font-mono uppercase" placeholder="YYMMDD-XXXX">
     <button onclick="App.trackFromInput()" class="w-full mt-3 h-12 rounded-full bg-primary-container text-on-primary font-label-lg text-label-lg">Lacak</button>
     <button onclick="App.toggleTrack()" class="w-full mt-2 py-2 font-body-sm text-body-sm text-on-surface-variant">Tutup</button>
   </div>
@@ -139,7 +143,7 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
           <span class="material-symbols-outlined text-[18px]">shopping_bag</span><span>Take Away</span>
         </button>
         <button data-v="Delivery" onclick="App.setOrderType(this)" class="ot-btn flex-1 py-2 px-1 rounded-full font-label-md text-label-md flex items-center justify-center gap-1 transition-all text-on-surface-variant">
-          <span class="material-symbols-outlined text-[18px]">moped</span><span>Delivery</span><span class="font-label-sm text-label-sm text-secondary">(Tausil)</span>
+          <span class="material-symbols-outlined text-[18px]">moped</span><span>Tausil</span>
         </button>
       </div>
       <!-- Detail pesanan -->
@@ -147,7 +151,7 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
         <span class="font-headline-sm text-headline-sm text-on-surface">Detail Pesanan</span>
         <input id="co-name" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container" placeholder="Nama">
         <input id="co-phone" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container" placeholder="No. WhatsApp (contoh: 01515041807)" inputmode="tel" onblur="App.lookupPhone()">
-        <textarea id="co-address" rows="2" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container resize-none" placeholder="Alamat (untuk Delivery / Tausil)"></textarea>
+        <textarea id="co-address" rows="2" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container resize-none" placeholder="Alamat (untuk Tausil)"></textarea>
         <div class="flex items-center gap-2 flex-wrap">
           <button onclick="App.shareLocation()" class="flex items-center gap-1.5 font-label-md text-label-md text-primary-container bg-primary-fixed/40 px-3 py-2 rounded-full">
             <span class="material-symbols-outlined text-[16px]">my_location</span>Bagikan Lokasi Saya

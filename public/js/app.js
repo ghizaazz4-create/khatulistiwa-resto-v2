@@ -199,7 +199,11 @@
       if (c.isRedeemed) pts += Number(c.point_price || 0) * c.qty;
       else sub += Number(c.price || 0) * c.qty;
     });
-    var service = Math.round(sub * Number(state.settings.service_charge || 5) / 100);
+    // Biaya Tausil TETAP 5 LE, hanya untuk Delivery (Tausil). Dine In /
+    // Take Away tidak kena biaya ini (service = 0). Setting lama
+    // service_charge (5%) sudah tidak dipakai lagi untuk biaya —
+    // dipertahankan di settings hanya sebagai arsip.
+    var service = state.orderType === "Delivery" ? Number(state.settings.tausil_fee || 5) : 0;
     var tax = Math.round(sub * Number(state.settings.tax_rate || 10) / 100);
     return { subtotal: sub, service: service, tax: tax, total: sub + service + tax, pointsCost: pts,
              pointsEarned: Math.floor((sub + service + tax) / Number(state.settings.loyalty_rate || 10)) };
@@ -234,7 +238,7 @@
       : '<p class="font-body-md text-body-md text-on-surface-variant text-center py-8">Keranjang masih kosong.</p>';
     $("cart-totals").innerHTML = '<div class="flex flex-col gap-1.5">' +
       '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Subtotal (' + n + ' item)</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.subtotal) + '</span></div>' +
-      '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Service 5%</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.service) + '</span></div>' +
+      (t.service > 0 ? '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Tausil</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.service) + '</span></div>' : '') +
       '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Tax 10%</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.tax) + '</span></div>' +
       (t.pointsCost ? '<div class="flex justify-between font-label-md text-label-md text-primary-container"><span>Poin dipakai</span><span>' + t.pointsCost + ' Pts</span></div>' : '') +
       '<div class="flex justify-between items-center border-t border-surface-variant/70 pt-2"><span class="font-headline-md text-headline-md text-on-surface">Total</span><span class="font-display-hero-mobile text-display-hero-mobile text-primary-container">' + fmt(t.total) + '</span></div></div>';
@@ -480,20 +484,21 @@
     }).join("");
     return '<div class="flex flex-col gap-3 py-2">' + rows + '</div>';
   }
-  // Ringkasan tagihan ASLI: Subtotal dari item + Layanan 5% + Pajak 10%
-  // (tarif dari settings, sama seperti cartTotals); Total = total_amount tersimpan.
-  // TIDAK ada ongkir / kupon (tidak ada di data).
+  // Ringkasan tagihan ASLI: Subtotal dari item + Tausil 5 LE (hanya
+  // Delivery) + Pajak 10%; Total = total_amount tersimpan. Nilai service
+  // tersimpan dipakai bila ada (fallback mengikuti aturan Tausil baru).
+  // TIDAK ada ongkir / kupon lain (tidak ada di data).
   function trackBillHtml(t, items, subtotal, service, tax) {
     var qty = (items || []).reduce(function (a, it) { return a + Number(it.qty || 0); }, 0);
-    var serviceRate = Number(state.settings.service_charge || 5);
+    var tausilFee = Number(state.settings.tausil_fee || 5);
     var taxRate = Number(state.settings.tax_rate || 10);
     var sub = (subtotal != null) ? subtotal : (items || []).reduce(function (a, it) { return a + Number(it.price || 0) * Number(it.qty || 0); }, 0);
-    var svc = (service != null) ? service : Math.round(sub * serviceRate / 100);
+    var svc = (service != null) ? service : (t.orderType === "Delivery" ? tausilFee : 0);
     var tx = (tax != null) ? tax : Math.round(sub * taxRate / 100);
     var total = (t.total_amount != null) ? t.total_amount : t.total;
     return '<div class="mt-4 pt-3 flex flex-col gap-2 bg-surface-container-lowest">' +
       '<div class="flex justify-between items-center text-on-surface-variant font-body-sm text-body-sm"><span>Subtotal (' + qty + ' item)</span><span class="font-semibold text-on-surface">' + fmt(sub) + '</span></div>' +
-      '<div class="flex justify-between items-center text-on-surface-variant font-body-sm text-body-sm"><span>Layanan (' + serviceRate + '%)</span><span class="font-semibold text-on-surface">' + fmt(svc) + '</span></div>' +
+      (svc > 0 ? '<div class="flex justify-between items-center text-on-surface-variant font-body-sm text-body-sm"><span>Tausil</span><span class="font-semibold text-on-surface">' + fmt(svc) + '</span></div>' : '') +
       '<div class="flex justify-between items-center text-on-surface-variant font-body-sm text-body-sm"><span>Pajak (' + taxRate + '%)</span><span class="font-semibold text-on-surface">' + fmt(tx) + '</span></div>' +
       '<div class="h-px bg-surface-container-high my-1"></div>' +
       '<div class="flex justify-between items-center"><div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-on-surface font-bold">Total Pembayaran</span><span class="font-label-sm text-label-sm text-on-surface-variant">Metode: ' + esc(paymentLabel(t.paymentMethod)) + '</span></div>' +
@@ -570,7 +575,7 @@
     var html = demoBannerHtml() + '<div class="flex flex-col gap-4 mt-4">';
     html += '<div class="flex items-center gap-2"><button onclick="App.go(\'online\')" class="w-11 h-11 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-variant/40 transition-colors" aria-label="Kembali"><span class="material-symbols-outlined text-[22px]">arrow_back_ios_new</span></button><h2 class="font-headline-md text-headline-md text-on-surface flex-1">Pesanan</h2>' +
       (state.orderId ? '<button onclick="App.copyTrackingLink()" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/40 transition-colors" aria-label="Bagikan link pesanan"><span class="material-symbols-outlined text-[22px]">share</span></button>' : "") + '</div>';
-    html += '<div class="flex items-center gap-2.5"><div class="flex-1 h-12 bg-surface-container-lowest rounded-full px-4 flex items-center gap-2.5 shadow-[0_2px_10px_rgba(30,63,50,0.05)]"><span class="material-symbols-outlined text-outline text-[20px]">search</span><input id="track-inline" class="w-full bg-transparent font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none font-mono uppercase" placeholder="YYMMDD-XXX" value="' + esc(state.orderId || "") + '"></div><button onclick="App.trackFromInline()" class="w-12 h-12 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm active:scale-95 transition-transform" aria-label="Lacak"><span class="material-symbols-outlined text-[20px]">search</span></button></div>';
+    html += '<div class="flex items-center gap-2.5"><div class="flex-1 h-12 bg-surface-container-lowest rounded-full px-4 flex items-center gap-2.5 shadow-[0_2px_10px_rgba(30,63,50,0.05)]"><span class="material-symbols-outlined text-outline text-[20px]">search</span><input id="track-inline" class="w-full bg-transparent font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none font-mono uppercase" placeholder="YYMMDD-XXXX" value="' + esc(state.orderId || "") + '"></div><button onclick="App.trackFromInline()" class="w-12 h-12 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm active:scale-95 transition-transform" aria-label="Lacak"><span class="material-symbols-outlined text-[20px]">search</span></button></div>';
     if (state.demoMode && state.demoOrder && String(state.demoOrder.id) === String(state.orderId)) {
       var d = state.demoOrder;
       var dAddr = d.address || (state.member && state.member.address) || "";
@@ -814,9 +819,9 @@
     }).join("") +
     '<div class="border-t border-surface-variant/70 mt-2 pt-2 flex flex-col gap-1.5">' +
     '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Subtotal (' + n + ' item)</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.subtotal) + '</span></div>' +
-    '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Service 5%</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.service) + '</span></div>' +
+    (t.service > 0 ? '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Tausil</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.service) + '</span></div>' : '') +
     '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Tax 10%</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.tax) + '</span></div>' +
-    '<div class="flex justify-between items-center pt-1"><div><span class="font-headline-md text-headline-md text-on-surface block">Total Pembayaran</span><span class="font-body-sm text-body-sm text-outline">Termasuk service &amp; pajak</span></div><span class="font-display-hero-mobile text-display-hero-mobile text-primary-container">' + fmt(t.total) + '</span></div>' +
+    '<div class="flex justify-between items-center pt-1"><div><span class="font-headline-md text-headline-md text-on-surface block">Total Pembayaran</span><span class="font-body-sm text-body-sm text-outline">' + (state.orderType === "Delivery" ? "Termasuk tausil &amp; pajak" : "Termasuk pajak") + '</span></div><span class="font-display-hero-mobile text-display-hero-mobile text-primary-container">' + fmt(t.total) + '</span></div>' +
     (t.pointsCost ? '<div class="flex justify-between font-label-md text-label-md text-primary-container"><span>Poin dipakai</span><span>' + t.pointsCost + ' Pts</span></div>' : '') +
     (state.member ? '<div class="flex justify-between font-label-md text-label-md text-primary-container"><span>Poin didapat</span><span>+' + t.pointsEarned + ' Pts</span></div>' : '') + '</div>';
   }
@@ -845,7 +850,7 @@
     lines.push("Order ID: " + txnId);
     lines.push("Nama: " + $("co-name").value.trim());
     lines.push("No. WA: " + $("co-phone").value.trim());
-    lines.push("Tipe: " + state.orderType);
+    lines.push("Tipe: " + (state.orderType === "Delivery" ? "Tausil" : state.orderType));
     var addr = $("co-address").value.trim();
     if (addr) lines.push("Alamat: " + addr);
     if (state.location) lines.push("Lokasi: " + state.location.mapsUrl);
@@ -872,10 +877,40 @@
   async function submitOrder() {
     var name = $("co-name").value.trim(), phone = $("co-phone").value.trim(), address = $("co-address").value.trim();
     var err = $("co-error");
-    function fail(msg) { err.textContent = msg; err.classList.remove("hidden"); }
-    if (!name) return fail("Isi nama dulu.");
-    if (phone.replace(/\D/g, "").length < 7) return fail("Isi nomor WhatsApp yang valid.");
-    if (state.orderType === "Delivery" && !address) return fail("Isi alamat delivery dulu (atau tekan Bagikan Lokasi).");
+    // Pesan error biasa (mis. kegagalan server): teks kecil seperti semula.
+    function fail(msg) { err.textContent = msg; err.classList.remove("hidden"); err.classList.remove("co-error-loud"); }
+    // Kegagalan validasi: notifikasi menonjol + tombol Accept bergoyang +
+    // drawer otomatis scroll ke kolom pertama yang belum diisi.
+    function failValidation(msg, fieldId) {
+      err.innerHTML = '<span class="material-symbols-outlined text-[18px]">warning</span><span>' + esc(msg) + '</span>';
+      err.classList.remove("hidden");
+      err.classList.add("co-error-loud");
+      var btn = $("co-accept");
+      if (btn) {
+        btn.classList.remove("shake");
+        void btn.offsetWidth; // restart animasi bila ditekan berulang
+        btn.classList.add("shake");
+        setTimeout(function () { btn.classList.remove("shake"); }, 600);
+      }
+      var field = fieldId ? $(fieldId) : null;
+      if (field) {
+        if (field.scrollIntoView) field.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (field.focus) field.focus({ preventScroll: true });
+        field.style.outline = "2px solid #ba1a1a";
+        field.style.outlineOffset = "1px";
+        var clear = function () {
+          field.style.outline = "";
+          field.style.outlineOffset = "";
+          if (field.removeEventListener) field.removeEventListener("input", clear);
+        };
+        if (field.addEventListener) field.addEventListener("input", clear);
+      }
+    }
+    // Reset error dari percobaan sebelumnya.
+    err.classList.add("hidden"); err.classList.remove("co-error-loud"); err.textContent = "";
+    if (!name) return failValidation("Isi nama dulu.", "co-name");
+    if (phone.replace(/\D/g, "").length < 7) return failValidation("Isi nomor WhatsApp yang valid.", "co-phone");
+    if (state.orderType === "Delivery" && !address) return failValidation("Isi alamat Tausil dulu (atau tekan Bagikan Lokasi).", "co-address");
     var t = cartTotals();
     var btn = $("co-accept");
     var acceptHtml = 'Accept &amp; Pesan via WhatsApp <span class="material-symbols-outlined text-[20px]">arrow_forward</span>';
@@ -1108,6 +1143,7 @@
     setOrderType: function (btn) {
       state.orderType = btn.getAttribute("data-v");
       syncCheckoutSelectors();
+      refreshCartDrawer(); // total berubah (Tausil hanya untuk Delivery)
     },
     setPayment: function (btn) {
       state.payment = btn.getAttribute("data-v");

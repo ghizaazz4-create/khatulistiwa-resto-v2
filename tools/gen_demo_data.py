@@ -26,6 +26,7 @@ SETTINGS = {
     "loyalty_rate": "10",
     "tax_rate": "10",
     "service_charge": "5",
+    "tausil_fee": "5",
 }
 
 
