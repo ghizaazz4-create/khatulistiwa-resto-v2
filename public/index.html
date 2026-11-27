@@ -8,164 +8,246 @@
 <meta property="og:title" content="Khatulistiwa Resto">
 <meta property="og:description" content="Pesan online makanan dan minuman Indonesia di Cairo, Mesir.">
 <meta property="og:type" content="website">
-<meta name="theme-color" content="#14532D">
+<meta name="theme-color" content="#1E3F32">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="assets/icons/icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-  tailwind.config = {
-    theme: { extend: {
-      colors: {
-        khatulistiwa: { dark: '#14532D', deep: '#0B3D20', lime: '#C7D957', limeDark: '#9DBE3A', cream: '#F7F0DC', creamDark: '#EFE3C2' }
-      },
-      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
-    }}
-  };
+<script id="tailwind-config">
+/* Design tokens — Google Stitch "Khatulistiwa Resto Delivery App"
+ * (khatulistiwa_culinary_experience / khatulistiwa_mobile). */
+tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-dim": "#dcdad3", "on-surface": "#1c1c18", "background": "#fcf9f2", "surface-container-lowest": "#ffffff", "primary-fixed-dim": "#aacfbd", "tertiary-container": "#682100", "on-surface-variant": "#414844", "surface-variant": "#e5e2db", "on-tertiary-fixed": "#370e00", "surface-tint": "#446557", "surface-container-low": "#f6f3ec", "primary-fixed": "#c6ebd8", "surface-container": "#f0eee7", "on-tertiary-container": "#f38456", "secondary": "#6a5d43", "on-error": "#ffffff", "tertiary-fixed": "#ffdbce", "on-primary-fixed": "#002116", "outline": "#727974", "inverse-surface": "#31312c", "on-secondary-fixed-variant": "#51452d", "inverse-on-surface": "#f3f0ea", "surface-container-highest": "#e5e2db", "on-primary-fixed-variant": "#2c4d40", "on-tertiary-fixed-variant": "#7e2c04", "surface-bright": "#fcf9f2", "error-container": "#ffdad6", "on-primary-container": "#87aa99", "error": "#ba1a1a", "on-tertiary": "#ffffff", "on-background": "#1c1c18", "on-secondary": "#ffffff", "secondary-fixed": "#f3e0bf", "on-primary": "#ffffff", "secondary-container": "#f0debc", "inverse-primary": "#aacfbd", "on-error-container": "#93000a", "on-secondary-container": "#6e6147", "surface-container-high": "#ebe8e1", "secondary-fixed-dim": "#d6c5a5", "tertiary": "#441300", "primary-container": "#1e3f32", "primary": "#06291d", "on-secondary-fixed": "#231a06", "surface": "#fcf9f2", "tertiary-fixed-dim": "#ffb599", "outline-variant": "#c1c8c3" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xl": "2rem", "space-xs": "0.25rem", "gutter": "1rem", "margin": "1.25rem", "space-md": "1rem", "space-lg": "1.5rem", "space-sm": "0.5rem" }, "fontFamily": { "headline-md": ["Plus Jakarta Sans"], "display-hero-mobile": ["Plus Jakarta Sans"], "price-tag": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"], "headline-lg": ["Plus Jakarta Sans"], "label-sm": ["Plus Jakarta Sans"], "display-hero": ["Plus Jakarta Sans"], "label-lg": ["Plus Jakarta Sans"], "body-md": ["Plus Jakarta Sans"], "body-sm": ["Plus Jakarta Sans"], "label-md": ["Plus Jakarta Sans"], "body-lg": ["Plus Jakarta Sans"] }, "fontSize": { "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "700" }], "display-hero-mobile": ["26px", { "lineHeight": "32px", "fontWeight": "800" }], "price-tag": ["15px", { "lineHeight": "20px", "fontWeight": "700" }], "headline-sm": ["16px", { "lineHeight": "22px", "fontWeight": "600" }], "headline-lg": ["22px", { "lineHeight": "28px", "fontWeight": "700" }], "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "700" }], "display-hero": ["32px", { "lineHeight": "38px", "fontWeight": "800" }], "label-lg": ["14px", { "lineHeight": "18px", "fontWeight": "600" }], "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "body-sm": ["12px", { "lineHeight": "18px", "fontWeight": "400" }], "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "600" }], "body-lg": ["15px", { "lineHeight": "22px", "fontWeight": "400" }] } } } };
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  body { font-family: 'Inter', system-ui, sans-serif; background: #F7F0DC; color: #1a1a1a; }
+  html, body { width: 100%; margin: 0; padding: 0; background-color: #fcf9f2; }
+  body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  ::-webkit-scrollbar { display: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  .cat-circle.active { border-color: #14532D; background: #14532D; color: #fff; }
-  .cat-circle.active span { color: #C7D957; }
-  .step-dot.done { background: #14532D; color: #fff; border-color: #14532D; }
-  .step-dot.now { background: #C7D957; color: #14532D; border-color: #14532D; animation: pulse 1.5s infinite; }
-  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(199,217,87,.6); } 50% { box-shadow: 0 0 0 8px rgba(199,217,87,0); } }
-  .bottom-nav button.active { color: #14532D; }
-  .bottom-nav button.active .nav-ico { background: #14532D; color: #C7D957; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+  input[type="search"]::-webkit-search-cancel-button { display: none; }
+  /* Bottom nav: active tab (kecuali tombol Order tengah) */
+  .bottom-nav button[data-nav]:not([data-nav="order"]).active { color: #1e3f32; }
+  /* Timeline: tahap yang sedang berjalan */
+  .step-now { animation: pulse-ring 1.5s infinite; }
+  @keyframes pulse-ring { 0%,100% { box-shadow: 0 0 0 0 rgba(198,235,216,.7); } 50% { box-shadow: 0 0 0 8px rgba(198,235,216,0); } }
 </style>
 </head>
-<body class="min-h-screen pb-24">
+<body class="bg-surface text-on-surface flex flex-col min-h-screen">
 
-<!-- ============ TOP HEADER (online views) ============ -->
-<header id="app-header" class="sticky top-0 z-40 bg-khatulistiwa-cream/95 backdrop-blur border-b border-khatulistiwa-creamDark">
-  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-    <div class="w-11 h-11 rounded-2xl bg-khatulistiwa-dark text-khatulistiwa-lime flex items-center justify-center font-black text-2xl shrink-0">K</div>
-    <div class="flex-1 min-w-0">
-      <h1 class="font-black text-lg leading-tight truncate">Khatulistiwa Resto</h1>
-      <p class="text-xs text-stone-500 truncate">Rasa Indonesia di Cairo, Mesir</p>
+<!-- ============ TOP HEADER (Stitch: fixed, logo + search) ============ -->
+<header id="app-header" class="fixed top-0 w-full z-40 pt-safe bg-surface/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
+  <div class="max-w-3xl mx-auto px-5 pt-2.5 pb-2.5">
+    <div class="flex items-center justify-between">
+      <div class="flex flex-col">
+        <div class="flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-primary-container text-[20px]">restaurant_menu</span>
+          <span class="font-headline-md text-headline-md tracking-tight text-primary-container">KHATULISTIWA</span>
+        </div>
+        <span class="font-label-sm text-label-sm tracking-wider uppercase text-secondary">Cuisine of Indonesia • Est. 2025 Egypt</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="App.toggleTrack()" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/40 transition-colors" title="Lacak Pesanan">
+          <span class="material-symbols-outlined text-[22px]">receipt_long</span>
+        </button>
+        <button onclick="App.go('rewards')" class="relative w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/40 transition-colors" title="Poin saya">
+          <span class="material-symbols-outlined text-[22px]">stars</span>
+          <span id="header-points" class="absolute top-0.5 right-0.5 bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm px-1.5 py-px rounded-full hidden">0</span>
+        </button>
+        <button onclick="App.go('profile')" class="w-11 h-11 flex items-center justify-center" title="Profil">
+          <span class="w-8 h-8 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+            <img id="header-avatar" class="w-8 h-8 object-cover hidden" alt="">
+            <span id="header-avatar-fallback" class="material-symbols-outlined text-on-primary text-[18px]">person</span>
+          </span>
+        </button>
+      </div>
     </div>
-    <button onclick="App.go('rewards')" class="relative shrink-0 w-10 h-10 rounded-full bg-white shadow flex items-center justify-center" title="Poin saya">
-      <span class="text-lg">⭐</span>
-      <span id="header-points" class="absolute -top-1 -right-1 bg-khatulistiwa-lime text-khatulistiwa-dark text-[10px] font-black px-1.5 py-0.5 rounded-full hidden">0</span>
-    </button>
-    <button onclick="App.go('profile')" class="shrink-0 w-10 h-10 rounded-full bg-white shadow overflow-hidden flex items-center justify-center" title="Profil">
-      <img id="header-avatar" class="w-10 h-10 object-cover hidden" alt="">
-      <span id="header-avatar-fallback" class="text-lg">👤</span>
-    </button>
-  </div>
-  <div class="max-w-3xl mx-auto px-4 pb-3">
-    <div class="flex items-center gap-2 bg-white rounded-full px-4 py-2.5 shadow-sm">
-      <span>🔍</span>
-      <input id="search-input" type="search" placeholder="Cari menu favoritmu..." class="flex-1 outline-none bg-transparent text-sm" oninput="App.onSearch(this.value)">
-      <button onclick="App.toggleTrack()" class="text-xs font-bold text-khatulistiwa-dark whitespace-nowrap">Lacak Pesanan</button>
+    <div class="mt-2 flex items-center gap-2 bg-surface-container-lowest rounded-full px-4 h-11 shadow-[0_2px_8px_rgba(30,63,50,0.04)]">
+      <span class="material-symbols-outlined text-outline text-[20px]">search</span>
+      <input id="search-input" type="search" placeholder="Cari menu favoritmu..." class="flex-1 outline-none bg-transparent font-body-md text-body-md placeholder:text-outline min-w-0" oninput="App.onSearch(this.value)">
+      <button onclick="App.toggleTrack()" class="font-label-md text-label-md text-primary-container whitespace-nowrap">Lacak</button>
     </div>
   </div>
 </header>
 
-<main id="app" class="max-w-3xl mx-auto px-4"></main>
+<main id="app" class="max-w-3xl mx-auto w-full px-5 pt-32 pb-44"></main>
+
+<!-- ============ FLOATING CART BAR (Stitch beranda: di atas bottom nav) ============ -->
+<div id="floating-cart" class="hidden fixed bottom-24 inset-x-0 z-40 pointer-events-none px-5">
+  <div class="pointer-events-auto max-w-md mx-auto bg-primary-container text-on-primary rounded-2xl px-4 py-3 flex items-center justify-between shadow-[0_12px_28px_-6px_rgba(30,63,50,0.4)] active:scale-[0.99] transition-transform cursor-pointer" onclick="App.toggleCart(true)">
+    <div class="flex items-center gap-3">
+      <div class="relative w-11 h-11 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
+        <span class="material-symbols-outlined text-[22px] text-surface">shopping_bag</span>
+        <span id="fc-count" class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-error text-on-error font-label-sm text-label-sm flex items-center justify-center ring-2 ring-primary-container">0</span>
+      </div>
+      <div class="flex flex-col">
+        <span class="font-label-sm text-label-sm tracking-wider uppercase text-on-primary-container">Pesanan Anda</span>
+        <span id="fc-text" class="font-headline-sm text-headline-sm text-surface font-bold">0 item • 0 LE</span>
+      </div>
+    </div>
+    <span class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface text-primary-container font-label-md text-label-md font-semibold shadow-sm">Lihat Keranjang<span class="material-symbols-outlined text-[16px]">arrow_forward</span></span>
+  </div>
+</div>
 
 <!-- ============ TRACK MODAL ============ -->
 <div id="track-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-24" onclick="if(event.target===this)App.toggleTrack()">
-  <div class="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl">
-    <h3 class="font-black text-lg">Lacak Pesanan</h3>
-    <p class="text-sm text-stone-500 mb-3">Masukkan nomor order, contoh: <span class="font-mono font-bold">261127-001</span></p>
-    <input id="track-input" class="w-full p-3 rounded-xl border-2 border-khatulistiwa-creamDark outline-none focus:border-khatulistiwa-dark font-mono uppercase" placeholder="YYMMDD-XXX">
-    <button onclick="App.trackFromInput()" class="w-full mt-3 py-3 rounded-2xl bg-khatulistiwa-dark text-white font-bold">Lacak</button>
-    <button onclick="App.toggleTrack()" class="w-full mt-2 py-2 text-sm text-stone-500">Tutup</button>
+  <div class="bg-surface-container-lowest rounded-[24px] p-5 w-full max-w-sm shadow-2xl">
+    <h3 class="font-headline-md text-headline-md text-on-surface">Lacak Pesanan</h3>
+    <p class="font-body-sm text-body-sm text-on-surface-variant mb-3">Masukkan nomor order, contoh: <span class="font-mono font-bold">261127-001</span></p>
+    <input id="track-input" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container font-mono uppercase" placeholder="YYMMDD-XXX">
+    <button onclick="App.trackFromInput()" class="w-full mt-3 h-12 rounded-full bg-primary-container text-on-primary font-label-lg text-label-lg">Lacak</button>
+    <button onclick="App.toggleTrack()" class="w-full mt-2 py-2 font-body-sm text-body-sm text-on-surface-variant">Tutup</button>
   </div>
 </div>
 
-<!-- ============ CHECKOUT MODAL ============ -->
+<!-- ============ CHECKOUT MODAL (Stitch keranjang) ============ -->
 <div id="checkout-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" onclick="if(event.target===this)App.closeCheckout()">
-  <div class="bg-white rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-md shadow-2xl max-h-[92vh] overflow-y-auto">
-    <h3 class="font-black text-lg mb-1">Checkout</h3>
-    <p class="text-sm text-stone-500 mb-4">Pesanan tercatat dulu, lalu dibuka WhatsApp admin.</p>
-    <div class="space-y-3">
-      <input id="co-name" class="w-full p-3 rounded-xl border-2 border-khatulistiwa-creamDark outline-none focus:border-khatulistiwa-dark" placeholder="Nama">
-      <input id="co-phone" class="w-full p-3 rounded-xl border-2 border-khatulistiwa-creamDark outline-none focus:border-khatulistiwa-dark" placeholder="No. WhatsApp (contoh: 01515041807)" inputmode="tel" onblur="App.lookupPhone()">
-      <div>
-        <textarea id="co-address" rows="2" class="w-full p-3 rounded-xl border-2 border-khatulistiwa-creamDark outline-none focus:border-khatulistiwa-dark" placeholder="Alamat (untuk Delivery / Tausil)"></textarea>
-        <button onclick="App.shareLocation()" class="mt-1 text-xs font-bold text-khatulistiwa-dark bg-khatulistiwa-lime/40 px-3 py-2 rounded-full">📍 Bagikan Lokasi Saya</button>
-        <span id="co-location" class="text-xs text-stone-500 ml-1"></span>
+  <div class="bg-surface rounded-t-[24px] sm:rounded-[24px] p-5 w-full max-w-md shadow-2xl max-h-[92vh] overflow-y-auto">
+    <div class="flex items-center gap-2 mb-4">
+      <button onclick="App.closeCheckout()" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-variant/40 transition-colors" aria-label="Kembali">
+        <span class="material-symbols-outlined text-[22px]">arrow_back_ios_new</span>
+      </button>
+      <h3 class="font-headline-md text-headline-md text-on-surface">Checkout</h3>
+    </div>
+    <div class="flex flex-col gap-4">
+      <!-- Tipe pesanan -->
+      <div class="bg-surface-container-low p-1.5 rounded-full flex items-center justify-between" id="co-ordertype">
+        <button data-v="Dine In" onclick="App.setOrderType(this)" class="ot-btn flex-1 py-2 px-1 rounded-full font-label-md text-label-md flex items-center justify-center gap-1 transition-all text-on-surface-variant">
+          <span class="material-symbols-outlined text-[18px]">restaurant</span><span>Dine In</span>
+        </button>
+        <button data-v="Take Away" onclick="App.setOrderType(this)" class="ot-btn flex-1 py-2 px-1 rounded-full font-label-md text-label-md flex items-center justify-center gap-1 transition-all bg-primary-container text-on-primary shadow-sm">
+          <span class="material-symbols-outlined text-[18px]">shopping_bag</span><span>Take Away</span>
+        </button>
+        <button data-v="Delivery" onclick="App.setOrderType(this)" class="ot-btn flex-1 py-2 px-1 rounded-full font-label-md text-label-md flex items-center justify-center gap-1 transition-all text-on-surface-variant">
+          <span class="material-symbols-outlined text-[18px]">moped</span><span>Delivery</span><span class="font-label-sm text-label-sm text-secondary">(Tausil)</span>
+        </button>
       </div>
-      <div>
-        <label class="text-xs font-bold text-stone-500">TIPE PESANAN</label>
-        <div class="grid grid-cols-3 gap-2 mt-1" id="co-ordertype">
-          <button data-v="Dine In" onclick="App.setOrderType(this)" class="py-2 rounded-xl border-2 font-bold text-sm">Dine In</button>
-          <button data-v="Take Away" onclick="App.setOrderType(this)" class="py-2 rounded-xl border-2 font-bold text-sm bg-khatulistiwa-dark text-white border-khatulistiwa-dark">Take Away</button>
-          <button data-v="Delivery" onclick="App.setOrderType(this)" class="py-2 rounded-xl border-2 font-bold text-sm">Delivery</button>
+      <!-- Detail pesanan -->
+      <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+        <span class="font-headline-sm text-headline-sm text-on-surface">Detail Pesanan</span>
+        <input id="co-name" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container" placeholder="Nama">
+        <input id="co-phone" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container" placeholder="No. WhatsApp (contoh: 01515041807)" inputmode="tel" onblur="App.lookupPhone()">
+        <textarea id="co-address" rows="2" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface placeholder:text-outline outline-none focus:ring-2 ring-primary-container resize-none" placeholder="Alamat (untuk Delivery / Tausil)"></textarea>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="App.shareLocation()" class="flex items-center gap-1.5 font-label-md text-label-md text-primary-container bg-primary-fixed/40 px-3 py-2 rounded-full">
+            <span class="material-symbols-outlined text-[16px]">my_location</span>Bagikan Lokasi Saya
+          </button>
+          <span id="co-location" class="font-body-sm text-body-sm text-on-surface-variant"></span>
         </div>
       </div>
-      <div>
-        <label class="text-xs font-bold text-stone-500">PEMBAYARAN</label>
-        <div class="grid grid-cols-3 gap-2 mt-1" id="co-payment">
-          <button data-v="Cash" onclick="App.setPayment(this)" class="py-2 rounded-xl border-2 font-bold text-sm bg-khatulistiwa-dark text-white border-khatulistiwa-dark">Cash</button>
-          <button data-v="QRIS" onclick="App.setPayment(this)" class="py-2 rounded-xl border-2 font-bold text-sm">QRIS</button>
-          <button data-v="Transfer" onclick="App.setPayment(this)" class="py-2 rounded-xl border-2 font-bold text-sm">Transfer</button>
+      <!-- Pembayaran -->
+      <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm flex flex-col gap-2">
+        <span class="font-headline-sm text-headline-sm text-on-surface">Metode Pembayaran</span>
+        <div class="co-pay-row flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-surface-container-low bg-surface-container-low" data-v="Cash" onclick="App.setPayment(this)">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-primary-container"><span class="material-symbols-outlined text-[20px]">payments</span></div>
+            <div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-on-surface">Tunai (Cash)</span><span class="font-body-sm text-body-sm text-on-surface-variant">Bayar tunai saat pesanan diterima</span></div>
+          </div>
+          <span class="pay-radio w-5 h-5 rounded-full bg-primary-container flex items-center justify-center shrink-0"><span class="pay-dot w-2 h-2 rounded-full bg-surface-container-lowest"></span></span>
         </div>
-        <p id="co-idr" class="text-xs text-stone-500 mt-1 hidden"></p>
+        <div class="co-pay-row flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-surface-container-low" data-v="QRIS" onclick="App.setPayment(this)">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-primary-container"><span class="material-symbols-outlined text-[20px]">qr_code</span></div>
+            <div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-on-surface">QRIS</span><span class="font-body-sm text-body-sm text-on-surface-variant">Scan kode QR saat pesanan diterima</span></div>
+          </div>
+          <span class="pay-radio w-5 h-5 rounded-full bg-surface-dim flex items-center justify-center shrink-0"><span class="pay-dot w-2 h-2 rounded-full bg-surface-container-lowest hidden"></span></span>
+        </div>
+        <div class="co-pay-row flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-surface-container-low" data-v="Transfer" onclick="App.setPayment(this)">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-primary-container"><span class="material-symbols-outlined text-[20px]">account_balance_wallet</span></div>
+            <div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-on-surface">Transfer</span><span class="font-body-sm text-body-sm text-on-surface-variant">Transfer bank / e-wallet</span></div>
+          </div>
+          <span class="pay-radio w-5 h-5 rounded-full bg-surface-dim flex items-center justify-center shrink-0"><span class="pay-dot w-2 h-2 rounded-full bg-surface-container-lowest hidden"></span></span>
+        </div>
+        <p id="co-idr" class="font-body-sm text-body-sm text-on-surface-variant hidden"></p>
       </div>
-      <textarea id="co-notes" rows="2" class="w-full p-3 rounded-xl border-2 border-khatulistiwa-creamDark outline-none focus:border-khatulistiwa-dark" placeholder="Catatan (opsional)"></textarea>
-      <div id="co-summary" class="bg-khatulistiwa-cream rounded-2xl p-3 text-sm"></div>
-      <div id="co-error" class="hidden text-sm font-bold text-red-600"></div>
-      <button id="co-accept" onclick="App.submitOrder()" class="w-full py-4 rounded-2xl bg-khatulistiwa-dark text-white font-black">Accept &amp; Kirim ke WhatsApp Admin →</button>
-      <button onclick="App.closeCheckout()" class="w-full py-2 text-sm text-stone-500">Batal</button>
+      <!-- Catatan -->
+      <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-[18px] text-outline">edit_note</span>
+          <span class="font-headline-sm text-headline-sm text-on-surface">Catatan Pesanan</span>
+        </div>
+        <textarea id="co-notes" rows="2" class="w-full bg-surface-container-low rounded-xl p-3 font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none resize-none" placeholder="Catatan untuk dapur / pengantar (misal: sambal dipisah)..."></textarea>
+      </div>
+      <!-- Ringkasan -->
+      <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm flex flex-col gap-2">
+        <span class="font-headline-sm text-headline-sm text-on-surface">Ringkasan Pembayaran</span>
+        <div id="co-summary"></div>
+      </div>
+      <div id="co-error" class="hidden font-label-md text-label-md text-error"></div>
+      <button id="co-accept" onclick="App.submitOrder()" class="w-full h-12 bg-primary-container text-on-primary rounded-xl font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all">Accept &amp; Pesan via WhatsApp<span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
+      <p class="font-body-sm text-body-sm text-on-surface-variant text-center">Guest bisa pesan tanpa login — login Google opsional, hanya untuk menyimpan poin dan alamat. Pesanan tercatat dulu, lalu dibuka WhatsApp admin.</p>
+      <button onclick="App.closeCheckout()" class="w-full py-1 font-body-sm text-body-sm text-on-surface-variant">Batal</button>
     </div>
   </div>
 </div>
 
-<!-- ============ CART DRAWER ============ -->
-<div id="cart-drawer" class="hidden fixed inset-0 z-50 bg-black/50" onclick="if(event.target===this)App.toggleCart(false)">
-  <div class="absolute right-0 top-0 h-full w-full max-w-sm bg-khatulistiwa-cream shadow-2xl flex flex-col">
-    <div class="p-4 flex items-center justify-between border-b border-khatulistiwa-creamDark">
-      <h3 class="font-black text-lg">Keranjang</h3>
-      <button onclick="App.toggleCart(false)" class="w-9 h-9 rounded-full bg-white shadow font-bold">✕</button>
+<!-- ============ CART DRAWER (Stitch keranjang: layar penuh) ============ -->
+<div id="cart-drawer" class="hidden fixed inset-0 z-50 bg-surface" onclick="if(event.target===this)App.toggleCart(false)">
+  <div class="max-w-md mx-auto h-full flex flex-col px-5 pt-4 pb-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <button onclick="App.toggleCart(false)" class="w-11 h-11 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-variant/40 transition-colors" aria-label="Kembali">
+          <span class="material-symbols-outlined text-[22px]">arrow_back_ios_new</span>
+        </button>
+        <h3 class="font-headline-md text-headline-md text-on-surface">Pesanan</h3>
+      </div>
+      <button onclick="App.toggleCart(false)" class="w-10 h-10 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center" aria-label="Tutup">
+        <span class="material-symbols-outlined text-[20px]">close</span>
+      </button>
     </div>
-    <div id="cart-items" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
-    <div class="p-4 bg-white border-t">
-      <div id="cart-totals" class="text-sm space-y-1 mb-3"></div>
-      <button onclick="App.openCheckout()" class="w-full py-4 rounded-2xl bg-khatulistiwa-dark text-white font-black">Checkout →</button>
+    <div id="cart-items" class="flex-1 overflow-y-auto py-4 space-y-3"></div>
+    <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm">
+      <div id="cart-totals"></div>
+      <button onclick="App.openCheckout()" class="w-full mt-3 h-12 bg-primary-container text-on-primary rounded-xl font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all"><span id="cart-checkout-label">Checkout</span><span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
     </div>
   </div>
 </div>
 
-<!-- ============ BOTTOM NAV ============ -->
-<nav id="bottom-nav" class="bottom-nav fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t">
-  <div class="max-w-3xl mx-auto grid grid-cols-5 py-2">
-    <button data-nav="online" onclick="App.go('online')" class="flex flex-col items-center gap-0.5 text-xs font-bold text-stone-500 active">
-      <span class="nav-ico w-10 h-10 rounded-full flex items-center justify-center text-lg">🏠</span>Home
+<!-- ============ BOTTOM NAV (Stitch: floating island pill) ============ -->
+<nav id="bottom-nav" class="bottom-nav fixed bottom-0 inset-x-0 z-40 pb-safe pointer-events-none px-5 mb-3">
+  <div class="pointer-events-auto h-20 max-w-md mx-auto bg-surface-container-lowest/95 backdrop-blur-xl rounded-full px-2 flex items-center justify-between shadow-[0_16px_36px_-8px_rgba(19,36,29,0.16)]">
+    <button data-nav="online" onclick="App.go('online')" class="flex flex-col items-center justify-center min-w-[56px] h-12 gap-0.5 text-on-surface-variant active">
+      <span class="material-symbols-outlined text-[22px]">home</span><span class="font-label-sm text-label-sm">Beranda</span>
     </button>
-    <button data-nav="menu" onclick="App.go('online');setTimeout(()=>document.getElementById('menu-section')?.scrollIntoView({behavior:'smooth'}),50)" class="flex flex-col items-center gap-0.5 text-xs font-bold text-stone-500">
-      <span class="nav-ico w-10 h-10 rounded-full flex items-center justify-center text-lg">🍽️</span>Menu
+    <button data-nav="menu" onclick="App.go('online');setTimeout(()=>document.getElementById('menu-section')?.scrollIntoView({behavior:'smooth'}),50)" class="flex flex-col items-center justify-center min-w-[56px] h-12 gap-0.5 text-on-surface-variant">
+      <span class="material-symbols-outlined text-[22px]">restaurant</span><span class="font-label-sm text-label-sm">Menu</span>
     </button>
-    <button data-nav="order" onclick="App.toggleCart(true)" class="flex flex-col items-center gap-0.5 text-xs font-bold text-stone-500 relative">
-      <span class="nav-ico w-12 h-12 -mt-5 rounded-full bg-khatulistiwa-dark text-khatulistiwa-lime flex items-center justify-center text-xl shadow-lg border-4 border-white">🛒</span>Order
-      <span id="cart-badge" class="absolute top-0 right-4 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full hidden">0</span>
+    <div class="flex items-center justify-center px-1">
+      <button data-nav="order" onclick="App.toggleCart(true)" class="relative w-14 h-14 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(30,63,50,0.4)] active:scale-95 transition-transform" aria-label="Keranjang">
+        <span class="material-symbols-outlined text-[24px]">shopping_bag</span>
+        <span id="cart-badge" class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-error text-on-error font-label-sm text-label-sm flex items-center justify-center ring-2 ring-surface-container-lowest hidden">0</span>
+      </button>
+    </div>
+    <button data-nav="rewards" onclick="App.go('rewards')" class="flex flex-col items-center justify-center min-w-[56px] h-12 gap-0.5 text-on-surface-variant">
+      <span class="material-symbols-outlined text-[22px]">stars</span><span class="font-label-sm text-label-sm">Hadiah</span>
     </button>
-    <button data-nav="rewards" onclick="App.go('rewards')" class="flex flex-col items-center gap-0.5 text-xs font-bold text-stone-500">
-      <span class="nav-ico w-10 h-10 rounded-full flex items-center justify-center text-lg">⭐</span>Rewards
-    </button>
-    <button data-nav="profile" onclick="App.go('profile')" class="flex flex-col items-center gap-0.5 text-xs font-bold text-stone-500">
-      <span class="nav-ico w-10 h-10 rounded-full flex items-center justify-center text-lg">👤</span>Profile
+    <button data-nav="profile" onclick="App.go('profile')" class="flex flex-col items-center justify-center min-w-[56px] h-12 gap-0.5 text-on-surface-variant">
+      <span class="material-symbols-outlined text-[22px]">account_circle</span><span class="font-label-sm text-label-sm">Profil</span>
     </button>
   </div>
 </nav>
 
 <!-- ============ ADMIN LOGIN (shown only for admin/kitchen views) ============ -->
-<div id="staff-login" class="hidden fixed inset-0 z-50 bg-khatulistiwa-cream flex items-center justify-center p-4">
-  <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center">
-    <div class="w-16 h-16 mx-auto rounded-2xl bg-khatulistiwa-dark text-khatulistiwa-lime flex items-center justify-center font-black text-3xl">K</div>
-    <h2 class="font-black text-xl mt-3">Khatulistiwa Resto — Staff</h2>
-    <p class="text-sm text-stone-500 mb-4">Masuk dengan akun staf (PIN) untuk POS / Kitchen / Admin.</p>
-    <select id="staff-employee" class="w-full p-3 rounded-xl border-2 border-khatulistiwa-creamDark outline-none mb-2"></select>
-    <input id="staff-pin" type="password" inputmode="numeric" class="w-full p-3 rounded-xl border-2 border-khatulistiwa-creamDark outline-none text-center text-2xl tracking-widest" placeholder="••••••">
-    <div id="staff-error" class="hidden text-sm font-bold text-red-600 mt-2"></div>
-    <button onclick="App.staffLogin()" class="w-full mt-3 py-3 rounded-2xl bg-khatulistiwa-dark text-white font-black">Masuk</button>
-    <button onclick="App.go('online')" class="w-full mt-2 py-2 text-sm text-stone-500">← Kembali ke Pesan Online</button>
+<div id="staff-login" class="hidden fixed inset-0 z-50 bg-surface flex items-center justify-center p-4">
+  <div class="bg-surface-container-lowest rounded-[24px] p-6 w-full max-w-sm shadow-2xl text-center">
+    <div class="w-16 h-16 mx-auto rounded-2xl bg-primary-container text-on-primary flex items-center justify-center font-display-hero-mobile text-display-hero-mobile">K</div>
+    <h2 class="font-headline-md text-headline-md text-on-surface mt-3">Khatulistiwa Resto — Staff</h2>
+    <p class="font-body-sm text-body-sm text-on-surface-variant mb-4">Masuk dengan akun staf (PIN) untuk POS / Kitchen / Admin.</p>
+    <select id="staff-employee" class="w-full p-3 rounded-xl bg-surface-container-low font-body-md text-body-md text-on-surface outline-none mb-2"></select>
+    <input id="staff-pin" type="password" inputmode="numeric" class="w-full p-3 rounded-xl bg-surface-container-low font-headline-lg text-headline-lg text-on-surface placeholder:text-outline outline-none text-center tracking-widest" placeholder="••••••">
+    <div id="staff-error" class="hidden font-label-md text-label-md text-error mt-2"></div>
+    <button onclick="App.staffLogin()" class="w-full mt-3 h-12 rounded-full bg-primary-container text-on-primary font-label-lg text-label-lg">Masuk</button>
+    <button onclick="App.go('online')" class="w-full mt-2 py-2 font-body-sm text-body-sm text-on-surface-variant flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[16px]">arrow_back</span>Kembali ke Pesan Online</button>
   </div>
 </div>
 
