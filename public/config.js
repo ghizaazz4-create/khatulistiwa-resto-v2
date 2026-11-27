@@ -16,6 +16,6 @@ window.KHATULISTIWA_CONFIG = {
   whatsappAdminPhone: "201515041807",
 };
 window.SUPABASE_CONFIG = {
-  url: "https://YOUR_PROJECT_REF.supabase.co",
-  anonKey: "YOUR_ANON_KEY_HERE",
+  url: "https://khlthmmhjajtfazqgpbf.supabase.co",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtobHRobW1oamFqdGZhenFncGJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU3MzIwOTYsImV4cCI6MjExMTMwODA5Nn0.eRTbCNLej-mdzShorOhC6Tf0U8VHVd2oGsvGMWlN8Hg",
 };
