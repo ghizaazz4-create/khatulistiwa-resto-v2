@@ -183,6 +183,19 @@ function check(name, ok) { console.log((ok ? "PASS " : "FAIL ") + name); ok ? pa
   check("Settings ada di popover More (bukan di bar mobile)",
     idx.slice(idx.indexOf('id="more-popover"'), idx.indexOf('id="crud-modal"')).includes("setAdminTab('settings')") &&
     !idx.slice(idx.indexOf('<nav id="main-nav"'), idx.indexOf('</nav>', idx.indexOf('<nav id="main-nav"'))).includes('data-nav="settings"'));
+  // Akar masalah navbar mobile (27 Nov 2026): aturan CSS `#sidebar .nav-link
+  // { display: flex }` mengalahkan class `hidden` Tailwind, sehingga SEMUA
+  // tombol sidebar tampil di HP. display harus dari utility Tailwind.
+  check("CSS sidebar tidak memaksa display:flex (hidden Tailwind berfungsi)",
+    !/#sidebar \.nav-link \{[^}]*display:\s*flex/.test(idx));
+  check("CSS modal-backdrop tidak memaksa display:flex (JS yang atur via class flex)",
+    !/\.modal-backdrop \{[^}]*display:\s*flex/.test(idx));
+  check("semua tombol sidebar nav-link pakai class flex Tailwind",
+    (() => {
+      var sb = idx.slice(idx.indexOf('<aside id="sidebar"'), idx.indexOf('</aside>'));
+      var links = sb.match(/class="nav-link[^"]*"/g) || [];
+      return links.length === 11 && links.every(function (c) { return c.indexOf('nav-link flex') > -1; });
+    })());
   check("display popover: POS / Kitchen Display / Customer View / Queue View",
     ["Register (POS)", "Kitchen Display", "Customer View", "Queue Status"].every(s => idx.includes(s)));
   check("CRUD modal ada (crud-modal + crud-fields + crud-title)",
