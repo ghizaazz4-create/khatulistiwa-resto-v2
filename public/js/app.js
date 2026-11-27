@@ -612,11 +612,11 @@
 
   // ---------- render: rewards (Stitch reward + gaya kartu status_pelanggan) ----------
   // Reward terdekat BERDASARKAN point_price produk asli (bukan tier karangan).
-  // Batas 1000 poin: Susu Kambing punya point_price 10000 (artefak harga lama
-  // Rp10.000 dari template, belum diputuskan harganya) — jangan jadikan ia
-  // "reward terdekat" atau menunya ditukar 10.000 poin. Harga asli max 110 LE.
+  // Hanya 4 menu yang bisa ditukar poin (data seed/demo: point_price > 0):
+  // Matcha 80, Thai Tea 65, Kopi Susu Khatulistiwa 60, Dimsum Goreng Ori 80.
+  // Produk lain point_price-nya 0, jadi tombol "Tukar Pts" tidak muncul di kartunya.
   function redeemableProducts() {
-    return state.products.filter(function (p) { return Number(p.point_price || 0) > 0 && Number(p.point_price) <= 1000 && p.status === "Active"; });
+    return state.products.filter(function (p) { return Number(p.point_price || 0) > 0 && p.status === "Active"; });
   }
   function nearestReward(points) {
     var list = redeemableProducts();
