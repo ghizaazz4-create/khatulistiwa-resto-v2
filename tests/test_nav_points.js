@@ -166,6 +166,23 @@ function check(name, ok) { console.log((ok ? "PASS " : "FAIL ") + name); ok ? pa
   check("sidebar GASPOS: Customers/History/Products/Categories/Staff/Reports + Pesan Online + Logout + popover Display/More",
     idx.includes('id="sidebar"') && ["Customers", "History", "Products", "Categories", "Staff", "Reports", "Pesan Online", "Logout"].every(s => idx.includes(s)) &&
     idx.includes('id="display-popover"') && idx.includes('id="more-popover"'));
+  // Navbar mobile: persis 4 tombol (Customers, History, POS tengah, More) —
+  // Settings pindah ke popover More, seperti v1.
+  check("navbar mobile admin: 4 tombol saja (Customers/History/POS/More)",
+    (() => {
+      var navStart = idx.indexOf('<nav id="main-nav"');
+      var nav = idx.slice(navStart, idx.indexOf('</nav>', navStart));
+      var btns = nav.match(/<button[^>]*>/g) || [];
+      var mobileVisible = btns.filter(function (b) { return b.indexOf('hidden lg:flex') === -1; });
+      return mobileVisible.length === 4 &&
+        mobileVisible.some(function (b) { return b.indexOf('id="display-menu-btn"') > -1; }) &&
+        mobileVisible.some(function (b) { return b.indexOf('id="more-menu-btn"') > -1; });
+    })());
+  check("tombol POS mobile lebar tetap (tanpa flex-1, w-20)",
+    (() => { var m = idx.match(/<button id="display-menu-btn"[^>]*>/); return m && m[0].indexOf('flex-1') === -1 && m[0].indexOf('max-lg:w-20') > -1; })());
+  check("Settings ada di popover More (bukan di bar mobile)",
+    idx.slice(idx.indexOf('id="more-popover"'), idx.indexOf('id="crud-modal"')).includes("setAdminTab('settings')") &&
+    !idx.slice(idx.indexOf('<nav id="main-nav"'), idx.indexOf('</nav>', idx.indexOf('<nav id="main-nav"'))).includes('data-nav="settings"'));
   check("display popover: POS / Kitchen Display / Customer View / Queue View",
     ["Register (POS)", "Kitchen Display", "Customer View", "Queue Status"].every(s => idx.includes(s)));
   check("CRUD modal ada (crud-modal + crud-fields + crud-title)",
