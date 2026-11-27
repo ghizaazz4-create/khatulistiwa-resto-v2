@@ -418,7 +418,7 @@ end $$;
 -- why egp_to_idr_rate was stored as "'327.7"). Values here are stored
 -- clean; the frontend's onlineIdrRate() strip is now harmless.
 -- SECURITY: void_pin / kitchen_pin below are the ORIGINAL TEMPLATE
--- DEFAULTS ('000000'). Change them in Settings immediately after import.
+-- DEFAULTS ('123456', pilihan user 2026-11-27 — samakan dengan PIN karyawan & STAFF_SESSION_SECRET).
 -- whatsapp_admin_phone is the Khatulistiwa admin number, editable in
 -- Settings (Profile/Notifications), exactly as specified.
 -- ---------------------------------------------------------------------------
@@ -434,8 +434,8 @@ insert into public.settings (key, value) values
   ('service_charge', '5'),
   ('enable_dine_in', 'true'),
   ('loyalty_rate', '1000'),
-  ('void_pin', '000000'),
-  ('kitchen_pin', '000000'),
+  ('void_pin', '123456'),
+  ('kitchen_pin', '123456'),
   ('custom_payment_methods', 'GrabFood, GoFood, ShopeePay'),
   ('theme_id', 'bento-warm'),
   ('enable_kitchen_display', 'true'),

@@ -3,8 +3,10 @@
  * Design: Google Stitch "Khatulistiwa Resto Delivery App"
  * (Plus Jakarta Sans, Material Symbols, deep forest #1E3F32,
  *  ivory #FCF9F2, lime accent). Tokens diambil dari code.html hasil
- *  export Stitch (stitch-export/); foto produk tetap dari data
- *  (Unsplash di seed/demo-data.js), BUKAN gambar AI Stitch.
+ *  export Stitch (stitch-export/); foto produk HANYA dari data
+ *  (products.image_url di Supabase) — tidak ada foto stok/bawaan.
+ *  image_url kosong = tampil blok tema tanpa foto (bukan img rusak);
+ *  begitu admin mengisi image_url asli, foto itu tampil di mana-mana.
  *
  * Views (?view=): online (default), order&id=, rewards, profile,
  * admin (staff PIN: POS / Kitchen / Transactions / Customers),
@@ -18,8 +20,8 @@
   "use strict";
 
   var ADMIN_PHONE = (window.KHATULISTIWA_CONFIG && window.KHATULISTIWA_CONFIG.whatsappAdminPhone) || "201515041807";
-  var CAT_ORDER = ["Nasi Gaol", "Soup Tomyam", "Cemilan", "Classic Drink", "Premium Drink", "Extra Topping", "Fresh Milk"];
-  var CAT_ICON = { "All": "local_dining", "Nasi Gaol": "rice_bowl", "Soup Tomyam": "soup_kitchen", "Cemilan": "bakery_dining", "Classic Drink": "local_cafe", "Premium Drink": "emoji_food_beverage", "Extra Topping": "add_circle", "Fresh Milk": "local_drink" };
+  var CAT_ORDER = ["Nasi Gaol", "Soup Tomyam", "Cemilan", "Classic Drink", "Premium Drink", "Extra Topping"];
+  var CAT_ICON = { "All": "local_dining", "Nasi Gaol": "rice_bowl", "Soup Tomyam": "soup_kitchen", "Cemilan": "bakery_dining", "Classic Drink": "local_cafe", "Premium Drink": "emoji_food_beverage", "Extra Topping": "add_circle" };
   var POPULAR_SKUS = ["NG01", "NG05", "ST03", "CM01", "PD03", "PD01", "PD08", "CD14"];
   var STATUS_STEPS = ["Pending", "Dibuat", "Diantar", "Selesai"];
   var CART_KEY = "khatulistiwa_cart_v2";
@@ -264,7 +266,7 @@
         '</div>' +
         '<div class="pt-4"><button onclick="document.getElementById(\'menu-section\')?.scrollIntoView({behavior:\'smooth\'})" class="inline-flex items-center gap-1.5 px-4 py-2 bg-surface text-primary-container rounded-full font-label-md text-label-md shadow-sm active:scale-95 transition-transform"><span>Pesan Sekarang</span><span class="material-symbols-outlined text-[16px]">arrow_forward</span></button></div>' +
       '</div>' +
-      (img ? '<div class="absolute -right-6 -bottom-6 w-44 h-44 rounded-full overflow-hidden shadow-inner"><img src="' + esc(img) + '" alt="Nasi Gaol" class="w-full h-full object-cover"></div>' : '') +
+      (img ? '<div class="absolute -right-6 -bottom-6 w-44 h-44 rounded-full overflow-hidden shadow-inner"><img src="' + esc(img) + '" alt="Nasi Gaol" class="w-full h-full object-cover"></div>' : '<div class="absolute -right-6 -bottom-6 w-44 h-44 rounded-full overflow-hidden bg-primary-fixed-dim/15 flex items-center justify-center"><span class="material-symbols-outlined text-[88px] text-primary-fixed/60">rice_bowl</span></div>') +
       '<div class="relative z-10 flex items-center gap-1.5 pt-3"><span class="w-4 h-1.5 rounded-full bg-surface"></span><span class="w-1.5 h-1.5 rounded-full bg-surface/40"></span><span class="w-1.5 h-1.5 rounded-full bg-surface/40"></span></div>' +
     '</section>';
   }
@@ -471,7 +473,7 @@
       var p = it.id ? productById(it.id) : null;
       var img = (p && p.imageUrl)
         ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(displayName(it.name || "")) + '" class="w-12 h-12 rounded-lg object-cover shadow-xs flex-shrink-0" loading="lazy" onerror="this.style.display=\'none\'">'
-        : '<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-[20px] text-outline">local_cafe</span></div>';
+        : '<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-[20px] text-outline">' + (p ? (CAT_ICON[p.category] || "local_dining") : "local_dining") + '</span></div>';
       return '<div class="flex items-start justify-between gap-3 bg-surface-container-low p-2.5 rounded-xl"><div class="flex items-start gap-2.5 min-w-0">' + img +
         '<div class="flex flex-col min-w-0"><span class="font-headline-sm text-headline-sm text-on-surface">' + Number(it.qty || 0) + 'x ' + esc(displayName(it.name || "")) + '</span>' +
         (it.notes ? '<span class="font-body-sm text-body-sm text-on-surface-variant italic">Catatan: ' + esc(it.notes) + '</span>' : "") + '</div></div>' +
@@ -632,7 +634,7 @@
   function redeemCard(p) {
     var img = p.imageUrl
       ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(displayName(p.name)) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display=\'none\'">'
-      : '<div class="w-full h-full bg-surface-container flex items-center justify-center"><span class="material-symbols-outlined text-[28px] text-outline">local_cafe</span></div>';
+      : '<div class="w-full h-full bg-surface-container flex items-center justify-center"><span class="material-symbols-outlined text-[28px] text-outline">' + (CAT_ICON[p.category] || "local_dining") + '</span></div>';
     return '<article class="flex flex-col rounded-[20px] bg-surface-container-lowest p-3 shadow-[0_6px_18px_-4px_rgba(30,63,50,0.06)] justify-between">' +
       '<div class="flex flex-col gap-2"><div class="relative w-full aspect-square rounded-[16px] overflow-hidden bg-surface-container">' + img + '</div>' +
       '<div class="flex flex-col"><h3 class="font-headline-sm text-headline-sm text-on-surface truncate">' + esc(displayName(p.name)) + '</h3>' +
@@ -993,7 +995,7 @@
     }).join("") + '</div>';
     if (state.adminTab === "pos") {
       html += '<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">' + state.products.filter(function (p) { return p.status === "Active"; }).map(function (p) {
-        return '<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm"><img src="' + esc(p.imageUrl || "") + '" class="w-full h-24 object-cover" onerror="this.style.display=\'none\'" alt=""><div class="p-3"><p class="font-headline-sm text-headline-sm text-on-surface">' + esc(displayName(p.name)) + '</p><p class="font-price-tag text-price-tag text-primary-container">' + fmt(p.price) + '</p><button onclick="App.addToCart(\'' + esc(p.id) + '\')" class="mt-2 w-full py-1.5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md">+ Tambah</button></div></div>';
+        return '<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">' + (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" class="w-full h-24 object-cover" onerror="this.style.display=\'none\'" alt="">' : '<div class="w-full h-24 bg-surface-container flex items-center justify-center"><span class="material-symbols-outlined text-[28px] text-outline">' + (CAT_ICON[p.category] || "local_dining") + '</span></div>') + '<div class="p-3"><p class="font-headline-sm text-headline-sm text-on-surface">' + esc(displayName(p.name)) + '</p><p class="font-price-tag text-price-tag text-primary-container">' + fmt(p.price) + '</p><button onclick="App.addToCart(\'' + esc(p.id) + '\')" class="mt-2 w-full py-1.5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md">+ Tambah</button></div></div>';
       }).join("") + '</div>';
       html += '<button onclick="App.toggleCart(true)" class="fixed bottom-24 right-4 z-40 px-5 py-3 rounded-full bg-primary-container text-on-primary font-label-md text-label-md shadow-lg flex items-center gap-2"><span class="material-symbols-outlined text-[20px]">shopping_bag</span>Keranjang (' + state.cart.reduce(function (a, c) { return a + c.qty; }, 0) + ')</button>';
       html += '<p class="font-body-sm text-body-sm text-on-surface-variant mt-4">Checkout POS memakai keranjang yang sama — tombol Checkout di keranjang akan memakai akun staf (bukan WhatsApp online).</p>';

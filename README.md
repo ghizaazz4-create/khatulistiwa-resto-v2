@@ -18,13 +18,13 @@ live v8) and `~/workspace/khatuliswa-resto-github-pages/` (live Pages).
 | `public/index.html` + `public/js/app.js` | New single-page app. Food-delivery UI: header + search, membership hero banner, scrollable round category circles, Popular Items cards with photo + LE price + green `+` button, bottom nav Home / Menu / Order / Rewards / Profile. Views: `?view=online` (default), `?view=order&id=YYMMDD-XXX` (tracking), `?view=rewards`, `?view=profile`, `?view=admin` (staff PIN: POS / Kitchen / Transactions / Customers), `?view=kitchen`. |
 | `public/js/supabaseApi.js` | Reused from the v1 scaffold, plus `trackOrder()` and `memberSync()`. |
 | `public/js/supabaseClient.js` | Reused from the v1 scaffold (anon client; also used for Supabase Auth). |
-| `public/js/demo-data.js` | **New — demo mode data.** Generated from `supabase/seed.sql` by `/tmp/gen_demo_data.py` (do not edit by hand; edit the seed and re-run). 7 categories, 45 products, settings (`restaurant_name`, `currency: LE`, `whatsapp_admin_phone`, `loyalty_rate: 10`, `tax_rate: 10`, `service_charge: 5`). Loaded only when Supabase is not configured; never used once `config.js` has a real URL + anon key. |
+| `public/js/demo-data.js` | **New — demo mode data.** Generated from `supabase/seed.sql` by `tools/gen_demo_data.py` (do not edit by hand; edit the seed and re-run). 6 categories, 44 products, settings (`restaurant_name`, `currency: LE`, `whatsapp_admin_phone`, `loyalty_rate: 10`, `tax_rate: 10`, `service_charge: 5`). Loaded only when Supabase is not configured; never used once `config.js` has a real URL + anon key. |
 | `public/config.js` | `SUPABASE_URL` / `SUPABASE_ANON_KEY` **placeholders only** — fill in after creating the project. Admin WhatsApp `201515041807` (public number). |
 | `public/manifest.json`, `public/sw.js`, `public/assets/icons/` | PWA for the whole app (name "Khatulistiwa Resto", theme green `#14532D`). Service worker caches the app shell; Supabase API calls are never cached (order status must stay live). Icons are simple generated placeholders (green + lime "K") — replace with the real logo before launch. |
 | `public/_headers`, `public/_redirects` | Cloudflare Pages headers + SPA fallback (`/* → /index.html`). Query-param views (`?view=...`) need no rewrite. |
 | `supabase/migrations/001_init.sql` | Reused unchanged from the v1 scaffold (9 tables, views, RLS, `next_transaction_id()`, Storage `assets` bucket, default settings). |
 | `supabase/migrations/002_v2_members.sql` | **New.** Member columns on `customers` (`google_id`, `avatar_url`, `latitude`, `longitude`, `maps_url`) + v2 settings: `restaurant_name = Khatulistiwa Resto`, `currency = LE`, `loyalty_rate = 10` (1 point per 10 LE), `theme_id = khatulistiwa-green`, Cairo address. |
-| `supabase/seed.sql` | **Replaced — real menu, not demo data.** 7 categories, **45 products** (Nasi Gaol 7, Soup Tomyam 4, Cemilan 7, Classic Drink 15, Premium Drink 9, Extra Topping 2, plus legacy Fresh Milk Susu Kambing), all LE prices, Regular stock 100, `point_price` = price in points, real Unsplash food-photo URL per product. Staff demo PINs kept (change before production). |
+| `supabase/seed.sql` | **Replaced — real menu, not demo data.** 6 categories, **44 products** (Nasi Gaol 7, Soup Tomyam 4, Cemilan 7, Classic Drink 15, Premium Drink 9, Extra Topping 2), all LE prices, Regular stock 100, `point_price` only on the 4 redeemable items. **No product photos** (`image_url` empty — the old Unsplash stock photos were removed 2026-11-27 because they are not the resto's real photos; admin uploads real photos via the Products form). Susu Kambing + kategori Fresh Milk dihapus 2026-11-27 atas permintaan user. Staff PINs = 123456 untuk semua karyawan (pilihan user 2026-11-27). |
 | `supabase/functions/submit-online-order` | Reused + extended: upsert now matches member by `customerId` → `google_id` → `email` → phone, and stores the delivery location (lat/lng/Maps link). Still: record first (Pending), client opens `wa.me` only after success. |
 | `supabase/functions/track-order` | **New, public.** One transaction by id: status, items, total, order type, payment. The tracking view re-fetches it every 15 s. |
 | `supabase/functions/member-sync` | **New, JWT-verified.** Syncs the signed-in Google member's profile (name, email, avatar, phone, address, location) to one `customers` row; returns points + totals. The browser can never sync another member's row. |
@@ -171,7 +171,7 @@ are injected automatically for deployed functions.
    changed in Pages → Settings; a custom domain can be added later).
 4. Edit `public/config.js` with the real Project URL + anon key
    (commit + redeploy, or set it before the first deploy).
-5. First test: open `?view=online` (menu loads, 45 products),
+5. First test: open `?view=online` (menu loads, 44 products),
    place a **test** order with a test phone (order records as
    Pending, WhatsApp opens), open the tracking link, change the
    status in Kitchen, and watch the link update within 15 s.
@@ -193,7 +193,7 @@ are injected automatically for deployed functions.
 | Resource | Free plan | What it means for this resto |
 |---|---|---|
 | Price | $0/month | No time limit, not a trial. |
-| Database size | **500 MB per project** | 45 products + orders: each order is a few KB. 500 MB is roughly **100,000+ orders** before it matters. First limit to watch only after years of orders. |
+| Database size | **500 MB per project** | 44 products + orders: each order is a few KB. 500 MB is roughly **100,000+ orders** before it matters. First limit to watch only after years of orders. |
 | Egress (bandwidth) | **5 GB/month** (+ 5 GB cached) | Menu + photos come mostly from Unsplash/Cloudflare, not Supabase. 5 GB is ~50,000+ page loads of API data. Fine. |
 | File storage | **1 GB** | Product/logo uploads to the `assets` bucket. 1 GB is thousands of photos. Fine. |
 | Monthly active users (Auth) | **50,000 MAU** | Google members counted only when they sign in that month. A resto will not come close. |
