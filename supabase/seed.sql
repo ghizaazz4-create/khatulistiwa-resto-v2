@@ -4,12 +4,11 @@
 -- All products: stock_source 'Regular', stock 100, status 'Active'.
 -- point_price = price in points (1 point per 10 LE spent, loyalty_rate = 10),
 -- so any item can be redeemed for its LE price in points.
--- Images: 39 produk punya foto AI 150x150 (background polos hijau muda),
+-- Images: 43 produk punya foto AI 150x150 (background polos hijau muda),
 -- dihost di GitHub Pages: /assets/products/<nama>.jpg (di-upload 2026-11-27).
--- 5 produk masih tanpa foto (image_url kosong): CD10 Nescafe (Hot),
--- PD08 Kopi Susu Khatulistiwa, PD09 Kopi Susu Gula Aren, ET01 Boba,
--- ET02 Jelly Cincau. Foto Unsplash lama dihapus 2026-11-27 karena bukan
--- foto asli resto; selama kosong, aplikasi menampilkan blok tema tanpa foto.
+-- 1 produk masih tanpa foto (image_url kosong): CD10 Nescafe (Hot).
+-- Foto Unsplash lama dihapus 2026-11-27 karena bukan foto asli resto;
+-- selama kosong, aplikasi menampilkan blok tema tanpa foto.
 -- Apply AFTER supabase/migrations/001_init.sql and 002_v2_members.sql,
 -- with: psql / SQL Editor. Do NOT run on a project that already has live data
 -- imported from the Sheet — this seed IS that live menu.
@@ -63,10 +62,10 @@ insert into public.products (id, sku, name, category, price, cost, stock, status
   ('P-PD05', 'PD05', 'Strawberry Milk', 'Premium Drink', 60, NULL, 100, 'Active', 'https://khatulistiwa-resto-v2.pages.dev/assets/products/strawberry-milk.jpg', 0, 'Regular', '[]'::jsonb),
   ('P-PD06', 'PD06', 'Redvelvet', 'Premium Drink', 80, NULL, 100, 'Active', 'https://khatulistiwa-resto-v2.pages.dev/assets/products/redvelvet.jpg', 0, 'Regular', '[]'::jsonb),
   ('P-PD07', 'PD07', 'Dark Chocolate', 'Premium Drink', 80, NULL, 100, 'Active', 'https://khatulistiwa-resto-v2.pages.dev/assets/products/dark-chocolate.jpg', 0, 'Regular', '[]'::jsonb),
-  ('P-PD08', 'PD08', 'Kopi Susu Khatulistiwa', 'Premium Drink', 60, NULL, 100, 'Active', '', 60, 'Regular', '[]'::jsonb),
-  ('P-PD09', 'PD09', 'Kopi Susu Gula Aren', 'Premium Drink', 70, NULL, 100, 'Active', '', 0, 'Regular', '[]'::jsonb),
-  ('P-ET01', 'ET01', 'Boba (Brown Sugar)', 'Extra Topping', 25, NULL, 100, 'Active', '', 0, 'Regular', '[]'::jsonb),
-  ('P-ET02', 'ET02', 'Jelly Cincau', 'Extra Topping', 15, NULL, 100, 'Active', '', 0, 'Regular', '[]'::jsonb);
+  ('P-PD08', 'PD08', 'Kopi Susu Khatulistiwa', 'Premium Drink', 60, NULL, 100, 'Active', 'https://khatulistiwa-resto-v2.pages.dev/assets/products/kopi-susu-khatulistiwa.jpg', 60, 'Regular', '[]'::jsonb),
+  ('P-PD09', 'PD09', 'Kopi Susu Gula Aren', 'Premium Drink', 70, NULL, 100, 'Active', 'https://khatulistiwa-resto-v2.pages.dev/assets/products/kopi-susu-gula-aren.jpg', 0, 'Regular', '[]'::jsonb),
+  ('P-ET01', 'ET01', 'Boba (Brown Sugar)', 'Extra Topping', 25, NULL, 100, 'Active', 'https://khatulistiwa-resto-v2.pages.dev/assets/products/boba.jpg', 0, 'Regular', '[]'::jsonb),
+  ('P-ET02', 'ET02', 'Jelly Cincau', 'Extra Topping', 15, NULL, 100, 'Active', 'https://khatulistiwa-resto-v2.pages.dev/assets/products/jelly-cincau.jpg', 0, 'Regular', '[]'::jsonb);
 
 -- Staff login: PIN semua karyawan = 123456 (SHA-256 di bawah), pilihan user 2026-11-27.
 -- Sama dengan void_pin / kitchen_pin di 001_init.sql dan STAFF_SESSION_SECRET.
