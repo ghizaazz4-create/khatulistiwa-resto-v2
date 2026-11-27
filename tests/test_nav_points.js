@@ -74,7 +74,43 @@ function check(name, ok) { console.log((ok ? "PASS " : "FAIL ") + name); ok ? pa
   check("navbar bar hijau gelap penuh sudah tidak ada", !idx.includes("bg-[#163B2C]") && !idx.includes("rounded-t-[28px]") && !idx.includes("bg-[#C7D957]"));
   check("floating cart bar masih ada", idx.includes('id="floating-cart"'));
   check("semua id yang dipakai app.js ada di index.html",
-    ["app", "app-header", "bottom-nav", "search-input", "track-modal", "checkout-modal", "cart-drawer", "cart-items", "cart-totals", "co-name", "co-phone", "co-address", "co-accept", "co-summary", "staff-login", "staff-employee", "staff-pin", "header-points", "header-avatar", "cart-badge", "floating-cart"].every(id => idx.includes('id="' + id + '"')));
+    ["app", "app-header", "bottom-nav", "search-input", "track-modal", "cart-drawer", "cart-items", "cart-totals", "cart-footer", "checkout-form", "co-name", "co-phone", "co-address", "co-accept", "co-summary", "co-error", "co-idr", "staff-login", "staff-employee", "staff-pin", "header-avatar", "cart-badge", "floating-cart"].every(id => idx.includes('id="' + id + '"')));
+
+  // Checkout inline: tidak ada lagi pop-up checkout kedua
+  check("tidak ada lagi checkout-modal di index.html", !idx.includes("checkout-modal") && !idx.includes("closeCheckout"));
+  check("form checkout ada di dalam cart-drawer",
+    idx.indexOf('id="cart-drawer"') < idx.indexOf('id="checkout-form"') && idx.indexOf('id="checkout-form"') < idx.indexOf('id="cart-footer"'));
+  check("tombol Accept ada di footer drawer (submitOrder)", idx.includes('id="co-accept"') && idx.includes('onclick="App.submitOrder()"'));
+  // Header: tombol bintang dihapus, Lacak + Profil tetap
+  check("tombol bintang header dihapus", !idx.includes("header-points") && !idx.includes("Poin saya"));
+  check("tombol Lacak dan Profil di header tetap ada", idx.includes("Lacak Pesanan") && idx.includes("App.go('profile')"));
+  // Hero subtitle dua baris
+  check("subtitle dua baris: Cuisine of Indonesia + Est. 2025 Egypt kecil",
+    idx.includes("Cuisine of Indonesia") && idx.includes("Est. 2025 Egypt") && idx.includes("text-[10px]") && !idx.includes("Cuisine of Indonesia • Est. 2025 Egypt"));
+  // Kartu produk bisa diklik + Tukar Pts stopPropagation
+  const appSrc = fs.readFileSync(base + "/js/app.js", "utf8");
+  check("kartu produk bisa diklik (onclick addToCart + cursor-pointer)", html.includes("cursor-pointer") && appSrc.includes('onclick="App.addToCart('));
+  check("tombol Tukar Pts / + stopPropagation (tidak dobel tambah)", (appSrc.match(/event\.stopPropagation\(\);App\.addToCart/g) || []).length >= 3);
+  // Populer tanpa item Hadiah
+  const popStart = html.indexOf("Pilihan Populer");
+  const popEnd = html.indexOf("KHATULISTIWA REWARDS", popStart);
+  const popSlice = popStart >= 0 && popEnd > popStart ? html.slice(popStart, popEnd) : "";
+  check("Pilihan Populer tanpa item Hadiah (tanpa Tukar Pts)", popSlice.length > 0 && !popSlice.includes("Tukar"));
+  check("Pilihan Populer tetap tampil (NG01/NG05/ST03/CD14)", ["Nasi Gaol Ayam Bakar", "Nasi Gaol Ayam Geprek", "Soup Tomyam Ayam", "Kopi Susu (Cold)"].every(n => popSlice.includes(n)));
+
+  // Alur keranjang → checkout inline (mode demo)
+  // el() aman bila elemen belum pernah dibuat stub DOM (mis. Supabase offline).
+  function el(id) { return els[id] || { innerHTML: "", classList: { contains: () => false } }; }
+  sandbox.App.toggleCart(true);
+  await new Promise(r => setTimeout(r, 20));
+  check("form checkout tersembunyi saat keranjang kosong", el("checkout-form").classList.contains("hidden"));
+  check("footer Accept tersembunyi saat keranjang kosong", el("cart-footer").classList.contains("hidden"));
+  sandbox.App.addToCart("P-NG01");
+  await new Promise(r => setTimeout(r, 20));
+  check("tambah ke keranjang dari kartu (addToCart)", el("cart-items").innerHTML.includes("Nasi Gaol Ayam Bakar"));
+  check("form checkout tampil saat keranjang berisi", !el("checkout-form").classList.contains("hidden"));
+  check("footer Accept tampil saat keranjang berisi", !el("cart-footer").classList.contains("hidden"));
+  check("ringkasan checkout terisi", el("co-summary").innerHTML.includes("Total Pembayaran"));
 
   console.log("\n" + pass + " passed, " + fail + " failed");
   process.exit(fail ? 1 : 0);

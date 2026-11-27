@@ -59,15 +59,12 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
           <span class="material-symbols-outlined text-primary-container text-[20px]">restaurant_menu</span>
           <span class="font-headline-md text-headline-md tracking-tight text-primary-container">KHATULISTIWA</span>
         </div>
-        <span class="font-label-sm text-label-sm tracking-wider uppercase text-secondary">Cuisine of Indonesia • Est. 2025 Egypt</span>
+        <span class="font-label-sm text-label-sm tracking-wider uppercase text-secondary">Cuisine of Indonesia</span>
+        <span class="block text-[10px] leading-[13px] tracking-wider uppercase text-secondary">Est. 2025 Egypt</span>
       </div>
       <div class="flex items-center gap-1">
         <button onclick="App.toggleTrack()" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/40 transition-colors" title="Lacak Pesanan">
           <span class="material-symbols-outlined text-[22px]">receipt_long</span>
-        </button>
-        <button onclick="App.go('rewards')" class="relative w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/40 transition-colors" title="Poin saya">
-          <span class="material-symbols-outlined text-[22px]">stars</span>
-          <span id="header-points" class="absolute top-0.5 right-0.5 bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm px-1.5 py-px rounded-full hidden">0</span>
         </button>
         <button onclick="App.go('profile')" class="w-11 h-11 flex items-center justify-center" title="Profil">
           <span class="w-8 h-8 rounded-full bg-primary flex items-center justify-center overflow-hidden">
@@ -115,16 +112,24 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
   </div>
 </div>
 
-<!-- ============ CHECKOUT MODAL (Stitch keranjang) ============ -->
-<div id="checkout-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" onclick="if(event.target===this)App.closeCheckout()">
-  <div class="bg-surface rounded-t-[24px] sm:rounded-[24px] p-5 w-full max-w-md shadow-2xl max-h-[92vh] overflow-y-auto">
-    <div class="flex items-center gap-2 mb-4">
-      <button onclick="App.closeCheckout()" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-variant/40 transition-colors" aria-label="Kembali">
-        <span class="material-symbols-outlined text-[22px]">arrow_back_ios_new</span>
+<!-- ============ CART DRAWER (Stitch keranjang: layar penuh) ============ -->
+<div id="cart-drawer" class="hidden fixed inset-0 z-50 bg-surface" onclick="if(event.target===this)App.toggleCart(false)">
+  <div class="max-w-md mx-auto h-full flex flex-col px-5 pt-4 pb-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <button onclick="App.toggleCart(false)" class="w-11 h-11 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-variant/40 transition-colors" aria-label="Kembali">
+          <span class="material-symbols-outlined text-[22px]">arrow_back_ios_new</span>
+        </button>
+        <h3 class="font-headline-md text-headline-md text-on-surface">Pesanan</h3>
+      </div>
+      <button onclick="App.toggleCart(false)" class="w-10 h-10 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center" aria-label="Tutup">
+        <span class="material-symbols-outlined text-[20px]">close</span>
       </button>
-      <h3 class="font-headline-md text-headline-md text-on-surface">Checkout</h3>
     </div>
-    <div class="flex flex-col gap-4">
+    <div class="flex-1 overflow-y-auto py-4 space-y-4">
+      <div id="cart-items"></div>
+      <div id="checkout-form" class="flex flex-col gap-4">
+      <h4 class="font-headline-md text-headline-md text-on-surface">Checkout</h4>
       <!-- Tipe pesanan -->
       <div class="bg-surface-container-low p-1.5 rounded-full flex items-center justify-between" id="co-ordertype">
         <button data-v="Dine In" onclick="App.setOrderType(this)" class="ot-btn flex-1 py-2 px-1 rounded-full font-label-md text-label-md flex items-center justify-center gap-1 transition-all text-on-surface-variant">
@@ -190,31 +195,12 @@ tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-d
         <div id="co-summary"></div>
       </div>
       <div id="co-error" class="hidden font-label-md text-label-md text-error"></div>
-      <button id="co-accept" onclick="App.submitOrder()" class="w-full h-12 bg-primary-container text-on-primary rounded-xl font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all">Accept &amp; Pesan via WhatsApp<span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
       <p class="font-body-sm text-body-sm text-on-surface-variant text-center">Guest bisa pesan tanpa login — login Google opsional, hanya untuk menyimpan poin dan alamat. Pesanan tercatat dulu, lalu dibuka WhatsApp admin.</p>
-      <button onclick="App.closeCheckout()" class="w-full py-1 font-body-sm text-body-sm text-on-surface-variant">Batal</button>
     </div>
-  </div>
-</div>
-
-<!-- ============ CART DRAWER (Stitch keranjang: layar penuh) ============ -->
-<div id="cart-drawer" class="hidden fixed inset-0 z-50 bg-surface" onclick="if(event.target===this)App.toggleCart(false)">
-  <div class="max-w-md mx-auto h-full flex flex-col px-5 pt-4 pb-6">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <button onclick="App.toggleCart(false)" class="w-11 h-11 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-variant/40 transition-colors" aria-label="Kembali">
-          <span class="material-symbols-outlined text-[22px]">arrow_back_ios_new</span>
-        </button>
-        <h3 class="font-headline-md text-headline-md text-on-surface">Pesanan</h3>
-      </div>
-      <button onclick="App.toggleCart(false)" class="w-10 h-10 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center" aria-label="Tutup">
-        <span class="material-symbols-outlined text-[20px]">close</span>
-      </button>
     </div>
-    <div id="cart-items" class="flex-1 overflow-y-auto py-4 space-y-3"></div>
-    <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm">
+    <div id="cart-footer" class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm mt-3">
       <div id="cart-totals"></div>
-      <button onclick="App.openCheckout()" class="w-full mt-3 h-12 bg-primary-container text-on-primary rounded-xl font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all"><span id="cart-checkout-label">Checkout</span><span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
+      <button id="co-accept" onclick="App.submitOrder()" class="w-full mt-3 h-12 bg-primary-container text-on-primary rounded-xl font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all">Accept &amp; Pesan via WhatsApp<span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
     </div>
   </div>
 </div>

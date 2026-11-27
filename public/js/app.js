@@ -153,11 +153,6 @@
   }
   function updateHeaderMember() {
     var m = state.member;
-    var pts = $("header-points");
-    if (pts) {
-      if (m) { pts.textContent = Number(m.points || 0); pts.classList.remove("hidden"); }
-      else pts.classList.add("hidden");
-    }
     var av = $("header-avatar"), fb = $("header-avatar-fallback");
     if (av && fb) {
       if (m && m.avatar_url) { av.src = m.avatar_url; av.classList.remove("hidden"); fb.classList.add("hidden"); }
@@ -243,7 +238,11 @@
       '<div class="flex justify-between font-body-md text-body-md text-on-surface-variant"><span>Tax 10%</span><span class="font-headline-sm text-headline-sm text-on-surface">' + fmt(t.tax) + '</span></div>' +
       (t.pointsCost ? '<div class="flex justify-between font-label-md text-label-md text-primary-container"><span>Poin dipakai</span><span>' + t.pointsCost + ' Pts</span></div>' : '') +
       '<div class="flex justify-between items-center border-t border-surface-variant/70 pt-2"><span class="font-headline-md text-headline-md text-on-surface">Total</span><span class="font-display-hero-mobile text-display-hero-mobile text-primary-container">' + fmt(t.total) + '</span></div></div>';
-    var lbl = $("cart-checkout-label"); if (lbl) lbl.textContent = "Checkout • " + fmt(t.total);
+    // Form checkout inline (di dalam drawer) hanya tampil bila ada isi keranjang.
+    var hasItems = state.cart.length > 0;
+    var form = $("checkout-form"); if (form) form.classList.toggle("hidden", !hasItems);
+    var foot = $("cart-footer"); if (foot) foot.classList.toggle("hidden", !hasItems);
+    if (hasItems) { prefillCheckoutForm(); syncCheckoutSelectors(); renderCheckoutSummary(); }
   }
 
   // ---------- render: online home (Stitch beranda) ----------
@@ -306,16 +305,16 @@
     else if (opts.badge === "POPULAR") badge = '<span class="absolute top-2.5 left-2.5 z-10 inline-flex items-center rounded-full font-bold" style="background-color:#1e3f32;color:#fff;font-size:10px;padding:4px 8px;box-shadow:0 2px 6px rgba(30,63,50,.3)">POPULAR</span>';
     else if (opts.badge) badge = '<span class="absolute top-2.5 left-2.5 z-10 inline-flex items-center rounded-full font-bold" style="background-color:#1e3f32;color:#fff;font-size:10px;padding:4px 8px">' + esc(opts.badge) + '</span>';
     var imgH = opts.carousel ? "h-28" : "aspect-square";
-    return '<div class="bg-surface-container-lowest rounded-2xl p-3 flex flex-col justify-between shadow-[0_4px_16px_-2px_rgba(30,63,50,0.06)] ' + (opts.carousel ? "shrink-0 w-40" : "") + '">' +
+    return '<div onclick="App.addToCart(\'' + esc(p.id) + '\')" class="bg-surface-container-lowest rounded-2xl p-3 flex flex-col justify-between cursor-pointer shadow-[0_4px_16px_-2px_rgba(30,63,50,0.06)] active:scale-[0.99] transition-transform ' + (opts.carousel ? "shrink-0 w-40" : "") + '">' +
       '<div class="flex flex-col"><div class="relative w-full ' + imgH + ' rounded-xl overflow-hidden bg-surface-container-low mb-2.5">' + img + badge + '</div>' +
       '<h3 class="font-headline-sm text-headline-sm text-on-surface leading-tight line-clamp-1">' + esc(displayName(p.name)) + '</h3></div>' +
       '<div class="flex items-center justify-between mt-2 pt-1"><span class="font-price-tag text-price-tag text-primary-container">' + fmt(p.price) + '</span>' +
-      '<button onclick="App.addToCart(\'' + esc(p.id) + '\')" class="w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center active:scale-90 transition-transform shadow-sm" aria-label="Tambah"><span class="material-symbols-outlined text-[18px]">add</span></button></div>' +
-      (Number(p.point_price || 0) > 0 ? '<button onclick="App.addToCart(\'' + esc(p.id) + '\', true)" class="mt-2 w-full py-1.5 rounded-full bg-secondary-container text-on-secondary-container font-label-md text-label-md font-bold">Tukar ' + Number(p.point_price) + ' Pts</button>' : '') +
+      '<button onclick="event.stopPropagation();App.addToCart(\'' + esc(p.id) + '\')" class="w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center active:scale-90 transition-transform shadow-sm" aria-label="Tambah"><span class="material-symbols-outlined text-[18px]">add</span></button></div>' +
+      (Number(p.point_price || 0) > 0 ? '<button onclick="event.stopPropagation();App.addToCart(\'' + esc(p.id) + '\', true)" class="mt-2 w-full py-1.5 rounded-full bg-secondary-container text-on-secondary-container font-label-md text-label-md font-bold">Tukar ' + Number(p.point_price) + ' Pts</button>' : '') +
       '</div>';
   }
   function renderOnline() {
-    var popular = POPULAR_SKUS.map(productBySku).filter(Boolean);
+    var popular = POPULAR_SKUS.map(productBySku).filter(function (p) { return p && Number(p.point_price || 0) === 0; }); // Hadiah (point_price > 0) tidak masuk Populer
     var list = visibleProducts();
     var html = demoBannerHtml() + '<div class="flex flex-col gap-5 mt-4">' + deliverToHtml() + heroHtml() + categoriesHtml();
     if (popular.length && state.category === "All" && !state.search) {
@@ -635,11 +634,11 @@
     var img = p.imageUrl
       ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(displayName(p.name)) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display=\'none\'">'
       : '<div class="w-full h-full bg-surface-container flex items-center justify-center"><span class="material-symbols-outlined text-[28px] text-outline">' + (CAT_ICON[p.category] || "local_dining") + '</span></div>';
-    return '<article class="flex flex-col rounded-[20px] bg-surface-container-lowest p-3 shadow-[0_6px_18px_-4px_rgba(30,63,50,0.06)] justify-between">' +
+    return '<article onclick="App.addToCart(\'' + esc(p.id) + '\', true)" class="flex flex-col rounded-[20px] bg-surface-container-lowest p-3 shadow-[0_6px_18px_-4px_rgba(30,63,50,0.06)] justify-between cursor-pointer active:scale-[0.99] transition-transform">' +
       '<div class="flex flex-col gap-2"><div class="relative w-full aspect-square rounded-[16px] overflow-hidden bg-surface-container">' + img + '</div>' +
       '<div class="flex flex-col"><h3 class="font-headline-sm text-headline-sm text-on-surface truncate">' + esc(displayName(p.name)) + '</h3>' +
       '<div class="flex items-center gap-1 text-on-tertiary-container mt-0.5"><span class="material-symbols-outlined text-[14px]" style="font-variation-settings:\'FILL\' 1">stars</span><span class="font-price-tag text-price-tag font-bold">' + Number(p.point_price) + ' Poin</span></div></div></div>' +
-      '<button onclick="App.addToCart(\'' + esc(p.id) + '\', true)" class="mt-3 w-full h-9 rounded-full bg-primary-container text-on-primary font-label-md text-label-md flex items-center justify-center active:scale-95 transition-transform">Tukar</button></article>';
+      '<button onclick="event.stopPropagation();App.addToCart(\'' + esc(p.id) + '\', true)" class="mt-3 w-full h-9 rounded-full bg-primary-container text-on-primary font-label-md text-label-md flex items-center justify-center active:scale-95 transition-transform">Tukar</button></article>';
   }
   function renderRewards() {
     var m = state.member;
@@ -780,20 +779,27 @@
       if (dot) dot.classList.toggle("hidden", !sel);
     });
   }
+  // Isi awal form checkout dari data member (hanya kolom yang masih kosong).
+  function prefillCheckoutForm() {
+    var m = state.member;
+    if (!m) return;
+    if ($("co-name") && !$("co-name").value) $("co-name").value = m.name || "";
+    if ($("co-phone") && !$("co-phone").value) $("co-phone").value = m.phone || "";
+    if ($("co-address") && !$("co-address").value) $("co-address").value = m.address || "";
+    if (m.latitude && m.longitude) {
+      state.location = { latitude: m.latitude, longitude: m.longitude, mapsUrl: m.maps_url || ("https://maps.google.com/?q=" + m.latitude + "," + m.longitude) };
+      var loc = $("co-location");
+      if (loc) loc.innerHTML = '<span class="material-symbols-outlined text-[14px] align-middle">location_on</span> Lokasi tersimpan dipakai';
+    }
+  }
+  // Checkout kini inline di dalam drawer keranjang (tanpa pop-up kedua):
+  // cukup buka drawer dan gulir ke form checkout.
   function openCheckout() {
     if (!state.cart.length) { alert("Keranjang masih kosong."); return; }
-    var m = state.member;
-    if (m) {
-      if (!$("co-name").value) $("co-name").value = m.name || "";
-      if (!$("co-phone").value) $("co-phone").value = m.phone || "";
-      if (!$("co-address").value) $("co-address").value = m.address || "";
-      if (m.latitude && m.longitude) { state.location = { latitude: m.latitude, longitude: m.longitude, mapsUrl: m.maps_url || ("https://maps.google.com/?q=" + m.latitude + "," + m.longitude) }; $("co-location").innerHTML = '<span class="material-symbols-outlined text-[14px] align-middle">location_on</span> Lokasi tersimpan dipakai'; }
-    }
-    syncCheckoutSelectors();
-    renderCheckoutSummary();
-    $("checkout-modal").classList.remove("hidden");
+    prefillCheckoutForm();
+    App.toggleCart(true);
+    setTimeout(function () { var f = $("checkout-form"); if (f && f.scrollIntoView) f.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60);
   }
-  function closeCheckout() { $("checkout-modal").classList.add("hidden"); var e = $("co-error"); if (e) e.classList.add("hidden"); }
   function renderCheckoutSummary() {
     var t = cartTotals();
     var idr = $("co-idr");
@@ -909,7 +915,7 @@
     window.open("https://wa.me/" + ADMIN_PHONE + "?text=" + encodeURIComponent(text), "_blank");
     var demoOrder = state.demoMode ? { id: txnId, items: state.cart.slice(), total: t.total, subtotal: t.subtotal, service: t.service, tax: t.tax, orderType: state.orderType, paymentMethod: state.payment, address: address, mapsUrl: state.location ? state.location.mapsUrl : (state.member ? state.member.maps_url : ""), notes: $("co-notes").value.trim(), timestamp: new Date().toISOString() } : null;
     state.cart = []; saveCart(); renderCartBadge();
-    closeCheckout();
+    App.toggleCart(false);
     state.view = "order"; state.orderId = txnId; state.trackOrder = null; state.trackError = "";
     state.demoOrder = demoOrder;
     history.replaceState(null, "", baseUrl() + "?view=order&id=" + encodeURIComponent(txnId));
@@ -998,7 +1004,7 @@
         return '<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">' + (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" class="w-full h-24 object-cover" onerror="this.style.display=\'none\'" alt="">' : '<div class="w-full h-24 bg-surface-container flex items-center justify-center"><span class="material-symbols-outlined text-[28px] text-outline">' + (CAT_ICON[p.category] || "local_dining") + '</span></div>') + '<div class="p-3"><p class="font-headline-sm text-headline-sm text-on-surface">' + esc(displayName(p.name)) + '</p><p class="font-price-tag text-price-tag text-primary-container">' + fmt(p.price) + '</p><button onclick="App.addToCart(\'' + esc(p.id) + '\')" class="mt-2 w-full py-1.5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md">+ Tambah</button></div></div>';
       }).join("") + '</div>';
       html += '<button onclick="App.toggleCart(true)" class="fixed bottom-24 right-4 z-40 px-5 py-3 rounded-full bg-primary-container text-on-primary font-label-md text-label-md shadow-lg flex items-center gap-2"><span class="material-symbols-outlined text-[20px]">shopping_bag</span>Keranjang (' + state.cart.reduce(function (a, c) { return a + c.qty; }, 0) + ')</button>';
-      html += '<p class="font-body-sm text-body-sm text-on-surface-variant mt-4">Checkout POS memakai keranjang yang sama — tombol Checkout di keranjang akan memakai akun staf (bukan WhatsApp online).</p>';
+      html += '<p class="font-body-sm text-body-sm text-on-surface-variant mt-4">Checkout POS memakai keranjang yang sama — tombol Accept di keranjang akan memakai akun staf (bukan WhatsApp online).</p>';
     } else if (state.adminTab === "kitchen") {
       html += '<div id="kitchen-list" class="mt-4"></div><p class="font-body-sm text-body-sm text-outline">Kitchen diperbarui otomatis tiap 15 detik.</p>';
       setTimeout(loadKitchen, 0);
@@ -1098,8 +1104,7 @@
       d.classList.toggle("hidden", !open);
       if (open) refreshCartDrawer();
     },
-    openCheckout: function () { App.toggleCart(false); openCheckout(); },
-    closeCheckout: closeCheckout,
+    openCheckout: openCheckout,
     setOrderType: function (btn) {
       state.orderType = btn.getAttribute("data-v");
       syncCheckoutSelectors();
