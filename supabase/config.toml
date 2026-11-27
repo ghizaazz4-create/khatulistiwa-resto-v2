@@ -1,0 +1,37 @@
+# Supabase project config for Khatulistiwa Resto.
+# This is a minimal config for `supabase link` / `supabase db push` /
+# `supabase functions deploy`. It is NOT a full `supabase init` output:
+# if you want local development (supabase start / local Postgres + Auth),
+# run `supabase init` in a fresh folder and merge the generated file.
+# Replace the project_id after creating the project at supabase.com.
+project_id = "khatulistiwa-resto"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[functions.submit-online-order]
+verify_jwt = false
+[functions.lookup-customer]
+verify_jwt = false
+[functions.upsert-customer]
+verify_jwt = false
+[functions.display-transactions]
+verify_jwt = false
+[functions.staff-api]
+verify_jwt = false
+# verify_jwt = false on all functions is deliberate: these functions do
+# their own auth (anon key for public ones, the staff HMAC session token
+# for staff-api). Do NOT enable Supabase Auth JWT verification here unless
+# you migrate staff login to Supabase Auth (see MIGRATION_NOTES.md §5).
+
+[functions.track-order]
+verify_jwt = false
+[functions.member-sync]
+verify_jwt = true
+# track-order is public like the other order functions (the order id is
+# the lookup key). member-sync is the exception: Supabase Auth verifies
+# the Google JWT first, so a member can only sync their own profile.

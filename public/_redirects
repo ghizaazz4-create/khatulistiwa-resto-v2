@@ -1,0 +1,7 @@
+# Khatulistiwa Resto v2 — SPA fallback for Cloudflare Pages.
+# Query-param views (?view=online / ?view=order&id=...) need no rewrite
+# (Pages serves index.html with the query string intact), but this keeps
+# any clean path (e.g. /order/261127-001) on the app instead of a 404.
+# Static files that exist (index.html, config.js, js/*, manifest.json,
+# sw.js, assets/*) are served directly and are NOT rewritten.
+/* /index.html 200

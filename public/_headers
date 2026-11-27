@@ -1,0 +1,8 @@
+# Khatulistiwa Resto v2 — Cloudflare Pages headers.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Cache-Control: no-cache
+/assets/icons/*
+  Cache-Control: public, max-age=86400
